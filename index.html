@@ -3,105 +3,53 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>KIN 104L Platformer — Planes, Axes, Muscle Actions</title>
+<title>KIN 104L Platformer — Procedural v6 (Stability Hotfix)</title>
 <style>
   :root{
     --bg: #0b1020;
-    --card:#111827;
+    --card:#0f172a;
     --text:#e5e7eb;
-    --muted:#94a3b8;
-    --accent:#22c55e;
-    --accent2:#38bdf8;
-    --warn:#f59e0b;
-    --err:#ef4444;
+    --muted:#9aa7bd;
   }
   *{box-sizing:border-box}
-  body{
-    margin:0;
-    background: radial-gradient(1200px 600px at 20% -20%, #12224e, transparent),
-                radial-gradient(1200px 600px at 120% 20%, #161e3a, transparent),
-                linear-gradient(#0a0f1e, #0a0f1e);
-    color:var(--text);
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, Noto Sans;
-    overflow:hidden;
-  }
-  header.toolbar{
-    position:fixed; top:0; left:0; right:0;
-    height:54px; display:flex; align-items:center; gap:10px;
-    padding:8px 12px; background:rgba(10,15,30,0.75);
-    backdrop-filter: blur(6px);
-    border-bottom:1px solid rgba(255,255,255,0.06);
-    z-index:10;
-  }
+  body{ margin:0; background: linear-gradient(#0a0f1e,#0a0f1e); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, Noto Sans; overflow:hidden; }
+  header.toolbar{ position:fixed; top:0; left:0; right:0; height:60px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 12px; background:rgba(10,15,30,0.8); backdrop-filter: blur(8px); border-bottom:1px solid rgba(255,255,255,0.06); z-index:10; }
   .toolbar .group{display:flex; align-items:center; gap:8px}
   .toolbar label{font-size:13px; color:var(--muted)}
-  .toolbar select, .toolbar input[type="text"], .toolbar input[type="number"]{
-    background:#0f172a;border:1px solid #22304d;border-radius:8px;color:var(--text);
-    padding:6px 8px; font-size:14px; outline:none;
-  }
-  .toolbar button{
-    background:linear-gradient(180deg,#1f2937,#101827);
-    border:1px solid #2f3b59; color:var(--text); border-radius:10px;
-    padding:8px 12px; font-weight:600; cursor:pointer;
-  }
+  .toolbar select, .toolbar input[type="text"], .toolbar input[type="number"], .toolbar input[type="checkbox"]{ background:#0f172a;border:1px solid #22304d;border-radius:8px;color:var(--text); padding:6px 8px; font-size:14px; outline:none; }
+  .toolbar button{ background:linear-gradient(180deg,#1f2937,#101827); border:1px solid #2f3b59; color:#e2e8f0; border-radius:10px; padding:8px 12px; font-weight:600; cursor:pointer; }
   .toolbar button:hover{border-color:#3f4b6a}
-  #hud{
-    position:fixed; left:12px; top:60px; z-index:6; display:flex; flex-direction:column; gap:8px;
-    font-size:14px; color: #cbd5e1;
-  }
+  #hud{ position:fixed; left:12px; top:64px; z-index:6; display:flex; flex-direction:column; gap:8px; font-size:14px; color: #cbd5e1; }
   .bar{width:220px; height:12px; background:#0f172a; border:1px solid #22304d; border-radius:8px; overflow:hidden}
-  .bar>div{height:100%; background: linear-gradient(90deg, var(--accent2), #2dd4bf)}
+  .bar>div{height:100%; background: linear-gradient(90deg, #38bdf8, #2dd4bf)}
   .tiny{font-size:12px; color:#9ca3af}
-  #gamewrap{position:fixed; inset:54px 0 0 0}
-  canvas#game{display:block; width:100%; height:100%}
-  /* Modal */
-  #modal{
-    position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center;
-    z-index:20; padding:16px;
-  }
-  #card{
-    width:min(760px, 96vw); background:#0f172a; border:1px solid #26324e; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45);
-    padding:18px; display:flex; flex-direction:column; gap:14px;
-  }
+  #gamewrap{position:fixed; inset:60px 0 0 0}
+  canvas#game{display:block; width:100%; height:100%; background:#0b0f20}
+  #modal{position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:20; padding:16px;}
+  #card{width:min(760px, 96vw); background:var(--card); border:1px solid #26324e; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45); padding:18px; display:flex; flex-direction:column; gap:14px;}
   #qtitle{font-size:16px; color:#d1d5db}
   #qtext{font-size:18px; line-height:1.4}
   .options{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-  .options button{
-    padding:12px; border-radius:12px; border:1px solid #334155; background:#111827; color:#e5e7eb; cursor:pointer; text-align:left;
-  }
+  .options button{padding:12px; border-radius:12px; border:1px solid #334155; background:#111827; color:#e5e7eb; cursor:pointer; text-align:left;}
   .options button:hover{border-color:#475569}
   .row{display:flex; gap:10px; align-items:center; justify-content:flex-end}
   .hint{color:#a3b1c5; font-size:14px}
   .ok{background:linear-gradient(180deg,#14532d,#052e16); border-color:#2c6c46}
   .bad{background:linear-gradient(180deg,#3f1d1d,#2a1212); border-color:#7f1d1d}
-  /* Toast */
-  #toast{
-    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
-    background:rgba(17,24,39,.92); border:1px solid #334155; color:#e2e8f0;
-    padding:10px 14px; border-radius:10px; font-size:14px; display:none; z-index:30;
-  }
-  /* Mobile controls */
+  #toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(17,24,39,.92); border:1px solid #334155; color:#e2e8f0; padding:10px 14px; border-radius:10px; font-size:14px; display:none; z-index:30;}
   #touch{position:fixed; inset:auto 0 0 0; height:130px; display:none; z-index:9; pointer-events:none}
   .pad{display:flex; gap:12px; padding:12px; pointer-events:auto}
-  .btn{
-    width:68px; height:68px; border-radius:50%; background:rgba(30,41,59,0.65); border:1px solid #334155; color:#e5e7eb; font-weight:700;
-    display:flex; align-items:center; justify-content:center; user-select:none; touch-action:none;
-  }
+  .btn{width:68px; height:68px; border-radius:50%; background:rgba(30,41,59,0.65); border:1px solid #334155; color:#e5e7eb; font-weight:700; display:flex; align-items:center; justify-content:center; user-select:none; touch-action:none;}
   .btn:active{transform:scale(0.96)}
   .leftpad{position:absolute; left:10px; bottom:10px}
   .rightpad{position:absolute; right:10px; bottom:10px}
-  .keycap{font-size:12px; color:#9ca3af; padding-left:4px}
-  @media (max-width: 850px){
-    #touch{display:block}
-    #hud{left:12px; top:58px; transform:scale(.95)}
-  }
+  @media (max-width: 850px){ #touch{display:block} #hud{left:12px; top:62px; transform:scale(.95)} }
+  #error{position:fixed; top:70px; right:12px; background:#2b0f0f; color:#fecaca; border:1px solid #7f1d1d; padding:8px 12px; border-radius:8px; max-width:40ch; display:none; z-index:50; font-size:12px; white-space:pre-wrap}
 </style>
 </head>
 <body>
 <header class="toolbar">
-  <div class="group">
-    <strong>KIN 104L Platformer</strong>
-  </div>
+  <div class="group"><strong>KIN 104L Platformer</strong></div>
   <div class="group">
     <label for="pack">Pack</label>
     <select id="pack">
@@ -110,14 +58,36 @@
     </select>
   </div>
   <div class="group">
-    <label for="seed">Daily seed</label>
+    <label for="seed">Seed</label>
     <input id="seed" type="text" value="UW-KIN" style="width:120px">
     <button id="reseed">Reseed</button>
+    <button id="new">New Level</button>
   </div>
   <div class="group">
-    <label for="speed">Speed</label>
-    <input id="speed" type="number" min="60" max="140" value="100" style="width:70px">
-    <span class="tiny">% </span>
+    <label for="biome">Theme</label>
+    <select id="biome">
+      <option value="meadow">Meadow</option>
+      <option value="cavern">Cavern</option>
+      <option value="ruins">Ruins</option>
+    </select>
+  </div>
+  <div class="group">
+    <label for="length">Length</label>
+    <select id="length">
+      <option value="short">Short</option>
+      <option value="medium">Medium</option>
+      <option value="long" selected>Long</option>
+      <option value="epic">Epic</option>
+    </select>
+  </div>
+  <div class="group">
+    <label for="jump">Jump</label>
+    <input id="jump" type="number" min="500" max="900" value="680" style="width:80px">
+    <label for="grav">Gravity</label>
+    <input id="grav" type="number" min="1200" max="2200" value="1700" style="width:80px">
+  </div>
+  <div class="group">
+    <label class="tiny"><input id="debug" type="checkbox"> Show anchors</label>
   </div>
   <div class="group" style="margin-left:auto">
     <button id="export">Export Progress</button>
@@ -126,14 +96,13 @@
 
 <div id="hud">
   <div>Lives: <span id="lives">3</span> <span class="tiny">(Campfire: 2/3 correct = +1)</span></div>
-  <div>ATP‑PCr</div>
+  <div>ATP-PCr</div>
   <div class="bar"><div id="pcbar" style="width:100%"></div></div>
-  <div class="tiny">Move: ←/→ or A/D &nbsp; Jump: ↑/W/Space &nbsp; Dash: Shift/X &nbsp; Interact: E</div>
+  <div class="tiny">Move: ←/→ or A/D &nbsp; Jump: ↑/W/Space (double-jump) &nbsp; Dash: Shift/X &nbsp; Interact: E</div>
 </div>
 
-<div id="gamewrap">
-  <canvas id="game" width="1280" height="720"></canvas>
-</div>
+<div id="gamewrap"><canvas id="game" width="1280" height="720"></canvas></div>
+<div id="error"></div>
 
 <!-- Mobile touch controls -->
 <div id="touch">
@@ -155,15 +124,20 @@
     <div id="qtext"></div>
     <div class="options" id="opts"></div>
     <div class="hint" id="hint" style="display:none"></div>
-    <div class="row">
-      <button id="close">Close</button>
-    </div>
+    <div class="row"><button id="close">Close</button></div>
   </div>
 </div>
 
 <div id="toast"></div>
 
 <script>
+/* ======= ERROR GUARD ======= */
+const errBox = document.getElementById('error');
+function showError(msg){ errBox.textContent = msg; errBox.style.display='block'; }
+window.onerror = function(msg, src, line, col, err){
+  showError(String(msg)); return false;
+};
+
 /* ======= UTILITIES ======= */
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -171,10 +145,11 @@ function makeRNG(seed){
   let h=0; for(let i=0;i<seed.length;i++){ h=(h*31 + seed.charCodeAt(i))>>>0; }
   return ()=>{ h = (h*1664525 + 1013904223)>>>0; return h/4294967296; };
 }
+
 /* ======= QUESTION BANK ======= */
 const QUESTION_BANK={
   planes_axes:[
-    {id:"pa1", text:"Which plane divides the body into left and right halves?", options:["Frontal","Sagittal","Transverse","Oblique"], correct:1, hint:"Think forward‑back motions like a lunge."},
+    {id:"pa1", text:"Which plane divides the body into left and right halves?", options:["Frontal","Sagittal","Transverse","Oblique"], correct:1, hint:"Think forward-back motions like a lunge."},
     {id:"pa2", text:"Jumping jacks primarily occur in which plane?", options:["Sagittal","Frontal","Transverse"], correct:1, hint:"Arms/legs move away/toward midline."},
     {id:"pa3", text:"Rotation of the head (shaking 'no') happens primarily around which axis?", options:["Longitudinal","Mediolateral","Anteroposterior"], correct:0, hint:"Spin like a top."},
     {id:"pa4", text:"A biceps curl primarily happens in which plane?", options:["Transverse","Frontal","Sagittal"], correct:2, hint:"Movement forward/back in a single plane."},
@@ -183,13 +158,14 @@ const QUESTION_BANK={
   ],
   muscle_actions:[
     {id:"ma1", text:"Primary action of Tibialis Anterior?", options:["Plantarflexion","Dorsiflexion","Eversion","Knee flexion"], correct:1, hint:"Lifts the forefoot."},
-    {id:"ma2", text:"Gluteus Medius contributes primarily to:", options:["Hip adduction","Hip abduction","Hip extension"], correct:1, hint:"Stabilizes pelvis during single‑leg stance."},
+    {id:"ma2", text:"Gluteus Medius contributes primarily to:", options:["Hip adduction","Hip abduction","Hip extension"], correct:1, hint:"Stabilizes pelvis during single-leg stance."},
     {id:"ma3", text:"Gastrocnemius primarily does:", options:["Dorsiflexion","Plantarflexion","Eversion"], correct:1, hint:"Pushes you onto your toes."},
     {id:"ma4", text:"Biceps Brachii acts to:", options:["Elbow extension","Elbow flexion","Pronation"], correct:1, hint:"Think curl."},
     {id:"ma5", text:"Peroneus (Fibularis) Longus mainly:", options:["Inverts foot","Everts foot","Dorsiflexes"], correct:1, hint:"Lateral compartment."},
     {id:"ma6", text:"Rectus Femoris primarily:", options:["Knee flexion","Knee extension","Ankle plantarflexion"], correct:1, hint:"Part of the quadriceps."}
   ]
 };
+
 /* ======= PROGRESS / MISSES ======= */
 const Progress={
   attempts:0, correct:0, wrong:0, misses:[], pack:"planes_axes",
@@ -198,77 +174,43 @@ const Progress={
     if(!result){ this.misses.push({id:qid, ts:Date.now(), pack:this.pack}); }
   },
   export(){
-    const data={
-      timestamp:new Date().toISOString(),
-      pack:this.pack,
-      attempts:this.attempts, correct:this.correct, wrong:this.wrong,
-      misses:this.misses.slice(-20)
-    };
+    const data={timestamp:new Date().toISOString(), pack:this.pack, attempts:this.attempts, correct:this.correct, wrong:this.wrong, misses:this.misses.slice(-20)};
     const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url; a.download=`KIN104L_progress_${Date.now()}.json`;
+    const a=document.createElement("a"); a.href=url; a.download=`KIN104L_progress_${Date.now()}.json`;
     document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
   }
 };
-/* ======= GAME CORE ======= */
-const TILE=32;
-const MAP = [
-  "................................................................................",
-  "................................................................................",
-  "................................................................................",
-  ".........................####...................................................",
-  "................................................................................",
-  "..............####.................................##...........................",
-  "................................................................................",
-  "....S..............................................P............................",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "====================#=============#============#=============================G==",
-  "================================================================================"
-];
-// Entities from glyphs
-const solids = new Set(["#","="]);
-let spawn={x:3*TILE, y:7*TILE};
-const entities=[];
-for(let y=0;y<MAP.length;y++){
-  for(let x=0;x<MAP[0].length;x++){
-    const ch=MAP[y][x];
-    if(ch==="S") spawn={x:x*TILE, y:y*TILE};
-    if(ch==="P") entities.push({type:"portal", x:x*TILE+TILE/2, y:y*TILE, open:false, gateX:(x+1)*TILE-6});
-    if(ch==="G") entities.push({type:"door", x:x*TILE+TILE/2, y:y*TILE, open:false});
-  }
-}
-// Extra: Muscle key placed above ground
-entities.push({type:"key", label:"Tibialis Anterior", x: 20*TILE+16, y: 3*TILE, picked:false});
-// Campfire review near start
-entities.push({type:"camp", x: 8*TILE+16, y: 7*TILE-16});
 
+/* ======= GAME CORE VARS ======= */
+const TILE=32;
+let MAP=[]; // array of strings
+const solids = new Set(["#","="]);
+let entities=[];
+let spawn={x:3*TILE, y:7*TILE};
+let checkpoint={x:3*TILE, y:7*TILE};
+let levelIndex=1;
+let RNG = makeRNG("UW-KIN");
+let BIOME='meadow';
+let LENGTH='long';
+let LEVEL_COLS=360;
+let bgLayers=null;
+
+/* ======= CANVAS SETUP ======= */
 const canvas=document.querySelector("#game"); const ctx=canvas.getContext("2d");
 let DPR = Math.max(1, Math.floor(window.devicePixelRatio||1));
-function resize(){
-  const w = window.innerWidth; const h = window.innerHeight-54;
-  canvas.width = Math.floor(w*DPR); canvas.height = Math.floor(h*DPR);
-  canvas.style.width = w+"px"; canvas.style.height = h+"px";
-}
+function resize(){ const w = window.innerWidth; const h = window.innerHeight-60; canvas.width = Math.floor(w*DPR); canvas.height = Math.floor(h*DPR); canvas.style.width = w+"px"; canvas.style.height = h+"px"; }
 resize(); addEventListener("resize", resize);
 
+/* ======= INPUT (edge-triggered for jump & interact) ======= */
 const keys={Left:false, Right:false, Jump:false, Dash:false, Interact:false};
+const press={jump:false, interact:false};
 addEventListener("keydown", e=>{
   if(["ArrowLeft","KeyA"].includes(e.code)) keys.Left=true;
   if(["ArrowRight","KeyD"].includes(e.code)) keys.Right=true;
-  if(["ArrowUp","KeyW","Space"].includes(e.code)) keys.Jump=true;
+  if(["ArrowUp","KeyW","Space"].includes(e.code)){ if(!keys.Jump){ press.jump=true; } keys.Jump=true; }
   if(["ShiftLeft","ShiftRight","KeyX"].includes(e.code)) keys.Dash=true;
-  if(["KeyE"].includes(e.code)) keys.Interact=true;
+  if(["KeyE"].includes(e.code)){ if(!keys.Interact){ press.interact=true; } keys.Interact=true; }
 });
 addEventListener("keyup", e=>{
   if(["ArrowLeft","KeyA"].includes(e.code)) keys.Left=false;
@@ -280,17 +222,11 @@ addEventListener("keyup", e=>{
 
 // Touch controls
 function setupTouch(){
-  const touch=document.querySelector("#touch");
   const btns=document.querySelectorAll(".btn");
-  const holdState={};
-  function setHold(name,val){ holdState[name]=val; 
-    if(name==="Left") keys.Left=val;
-    if(name==="Right") keys.Right=val;
-    if(name==="Dash") keys.Dash=val;
-  }
+  function setHold(name,val){ if(name==="Left") keys.Left=val; if(name==="Right") keys.Right=val; if(name==="Dash") keys.Dash=val; }
   btns.forEach(b=>{
     const tap=b.dataset.tap, hold=b.dataset.hold;
-    function down(e){ e.preventDefault(); if(hold){ setHold(hold,true); } if(tap){ if(tap==="Jump") keys.Jump=true; if(tap==="Interact") keys.Interact=true; } }
+    function down(e){ e.preventDefault(); if(hold){ setHold(hold,true); } if(tap){ if(tap==="Jump"){ press.jump=true; keys.Jump=true; } if(tap==="Interact"){ press.interact=true; keys.Interact=true; } } }
     function up(e){ e.preventDefault(); if(hold){ setHold(hold,false); } if(tap){ if(tap==="Jump") keys.Jump=false; if(tap==="Interact") keys.Interact=false; } }
     b.addEventListener("pointerdown",down); b.addEventListener("pointerup",up); b.addEventListener("pointercancel",up); b.addEventListener("pointerleave",up);
   });
@@ -298,322 +234,215 @@ function setupTouch(){
 setupTouch();
 
 /* ======= PLAYER / PHYSICS ======= */
-const player={ x:spawn.x, y:spawn.y, w:20, h:28, vx:0, vy:0, onGround:false, coyote:0, jumpBuf:0, facing:1, lives:3, hasKey:false,
-  dashTime:0, pc:1 // phosphocreatine meter 0..1
-};
+let GRAV=1700, MOVE=260, JUMP=680, COYOTE_MS=110, JBUF_MS=140; let SPEED=1.0;
+const player={ x:spawn.x, y:spawn.y, w:20, h:28, vx:0, vy:0, onGround:false, coyote:0, facing:1, lives:3, hasKey:false, dashTime:0, pc:1, maxAirJumps:1, airJumps:1, jumpBuffer:0 };
 document.querySelector("#lives").textContent=player.lives;
 
-const GRAV=1700, MOVE=260, JUMP=500, COYOTE=90, JBUF=120;
-let SPEED=1.0;
+// TILES
+function tileAt(px,py){ const x=Math.floor(px/TILE), y=Math.floor(py/TILE); if(y<0 || y>=MAP.length || x<0 || x>=MAP[0].length) return "."; return MAP[y][x]; }
+function solidAt(px,py){ return solids.has(tileAt(px,py)); }
+function aabbSolid(ax,ay,aw,ah){ const points=[[ax,ay],[ax+aw,ay],[ax,ay+ah],[ax+aw,ay+ah]]; for(const [px,py] of points){ if(solidAt(px,py)) return true; } return false; }
 
-// Collision helpers
-function tileAt(px,py){
-  const x=Math.floor(px/TILE), y=Math.floor(py/TILE);
-  if(y<0 || y>=MAP.length || x<0 || x>=MAP[0].length) return ".";
-  return MAP[y][x];
-}
-function solidAt(px,py){
-  return solids.has(tileAt(px,py));
-}
-function aabbSolid(ax,ay,aw,ah){
-  // Check four corners against solids
-  const points=[
-    [ax,ay],[ax+aw,ay],[ax,ay+ah],[ax+aw,ay+ah]
-  ];
-  for(const [px,py] of points){ if(solidAt(px,py)) return true; }
-  return false;
-}
-
+// Move + collide
 function moveAndCollide(dt){
-  // Horizontal
   player.x += player.vx*dt;
-  if(aabbSolid(player.x, player.y, player.w, player.h)){
-    // Resolve by moving back
-    const step = Math.sign(player.vx)||1;
-    while(aabbSolid(player.x, player.y, player.w, player.h)) player.x -= step;
-    player.vx=0;
-  }
-  // Vertical
+  if(aabbSolid(player.x, player.y, player.w, player.h)){ const step = Math.sign(player.vx)||1; while(aabbSolid(player.x, player.y, player.w, player.h)) player.x -= step; player.vx=0; }
   player.y += player.vy*dt;
   if(aabbSolid(player.x, player.y, player.w, player.h)){
     const step = Math.sign(player.vy)||1;
     while(aabbSolid(player.x, player.y, player.w, player.h)) player.y -= step;
-    if(step>0){ player.onGround=true; player.coyote=COYOTE; }
+    if(step>0){ if(!player.onGround){ player.onGround=true; player.airJumps=player.maxAirJumps; } player.coyote = COYOTE_MS; }
     player.vy=0;
-  } else {
-    if(player.onGround===true){ player.onGround=false; }
-    if(player.coyote>0) player.coyote -= dt*1000;
-  }
+  } else { if(player.onGround===true){ player.onGround=false; } if(player.coyote>0) player.coyote -= dt*1000; }
 }
 
+function doJump(strength=JUMP){ player.vy = -strength; player.onGround=false; player.coyote=0; player.jumpBuffer=0; }
+
 function updatePlayer(dt){
-  // Input
   const dir = (keys.Left?-1:0) + (keys.Right?1:0);
   player.vx = lerp(player.vx, dir*MOVE, 0.15);
   if(dir!==0) player.facing = dir;
-  // Jumping with coyote & buffer
-  if(keys.Jump){ player.jumpBuf=JBUF; } else { player.jumpBuf-=dt*1000; }
-  if(player.jumpBuf>0 && (player.onGround || player.coyote>0)){
-    player.vy = -JUMP; player.onGround=false; player.coyote=0; player.jumpBuf=0;
-  }
-  // Gravity
+  if(press.jump){ player.jumpBuffer = JBUF_MS/1000; } else if(player.jumpBuffer>0){ player.jumpBuffer -= dt; }
+  if(player.jumpBuffer>0 && (player.onGround || player.coyote>0)){ doJump(JUMP); }
+  else if(press.jump && !player.onGround && player.airJumps>0){ doJump(JUMP*0.95); player.airJumps -= 1; }
+  if(!keys.Jump && player.vy < -160){ player.vy *= 0.94; }
   player.vy += GRAV*dt;
-  // Dash
-  if(keys.Dash && player.pc>0.35 && player.dashTime<=0){
-    player.dashTime = 0.18;
-    player.pc = clamp(player.pc-0.35,0,1);
-  }
-  if(player.dashTime>0){
-    player.dashTime-=dt;
-    player.vx = player.facing * 520;
-    player.vy = player.vy*0.3;
-  } else {
-    // Regen PC faster when idle
-    const regen = (dir===0 && Math.abs(player.vy)<20)? 0.35 : 0.18;
-    player.pc = clamp(player.pc + regen*dt, 0, 1);
-  }
-  // Move
+  if(keys.Dash && player.pc>0.35 && player.dashTime<=0){ player.dashTime = 0.18; player.pc = clamp(player.pc-0.35,0,1); }
+  if(player.dashTime>0){ player.dashTime-=dt; player.vx = player.facing * 520; player.vy = player.vy*0.3; } else { const regen = (dir===0 && Math.abs(player.vy)<20)? 0.35 : 0.18; player.pc = clamp(player.pc + regen*dt, 0, 1); }
   moveAndCollide(dt);
-  // UI
+  const worldH = MAP.length*TILE; if(MAP.length && player.y > worldH + 200){ player.lives = Math.max(0, player.lives-1); document.querySelector("#lives").textContent=player.lives; respawn(); }
   document.querySelector("#pcbar").style.width = (player.pc*100).toFixed(1)+"%";
+  press.jump=false; press.interact=false;
 }
 
-/* ======= CAMERA & DRAW ======= */
+function respawn(){ player.x = checkpoint.x; player.y = checkpoint.y; player.vx=0; player.vy=0; player.coyote=0; player.airJumps=player.maxAirJumps; player.pc=1; player.dashTime=0; }
+
+/* ======= CAMERA ======= */
 const cam={x:0,y:0};
 function updateCam(dt){
+  if(!MAP.length) return;
   const viewW = canvas.width/DPR, viewH = canvas.height/DPR;
-  const targetX = player.x - viewW*0.4;
-  const targetY = player.y - viewH*0.55;
-  cam.x = lerp(cam.x, targetX, 0.12);
-  cam.y = lerp(cam.y, targetY, 0.12);
-  cam.x = clamp(cam.x, 0, MAP[0].length*TILE - viewW);
-  cam.y = clamp(cam.y, 0, MAP.length*TILE - viewH);
+  const targetX = player.x - viewW*0.4, targetY = player.y - viewH*0.55;
+  cam.x = lerp(cam.x, targetX, 0.12); cam.y = lerp(cam.y, targetY, 0.12);
+  cam.x = clamp(cam.x, 0, MAP[0].length*TILE - viewW); cam.y = clamp(cam.y, 0, MAP.length*TILE - viewH);
 }
 
-function draw(){
-  const W=canvas.width, H=canvas.height;
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  // Sky
-  ctx.fillStyle="#0b1020"; ctx.fillRect(0,0,W/DPR,H/DPR);
-  // Parallax background
-  ctx.save();
-  ctx.translate(-cam.x*0.2, -cam.y*0.2);
-  ctx.fillStyle="#0c1b3a"; for(let i=0;i<10;i++){ ctx.fillRect(400*i, 200+40*Math.sin(i*0.7), 160, 220); }
-  ctx.restore();
-  // World
-  ctx.save();
-  ctx.translate(-cam.x, -cam.y);
-  // Tiles
-  for(let y=0;y<MAP.length;y++){
-    for(let x=0;x<MAP[0].length;x++){
-      const ch=MAP[y][x];
-      if(ch==="="){ ctx.fillStyle="#263143"; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.fillStyle="#1b2536"; ctx.fillRect(x*TILE,y*TILE+22,TILE,10); }
-      if(ch==="#"){ ctx.fillStyle="#1f2a3e"; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); }
+/* ======= BIOMES / PALETTES ======= */
+const PALETTES={ meadow:{ sky1:"#0b1224", sky2:"#0e1a3c", hillFar:"#0b1632", hillNear:"#122049", cloud:"#d9e1f2", tile:"#3b4b61", tileTop:"#52627a", fg:"#0e1726" },
+                  cavern:{ sky1:"#060611", sky2:"#0a0a18", hillFar:"#0b0f24", hillNear:"#14173a", cloud:"#8581a8", tile:"#3b3b5c", tileTop:"#52527a", fg:"#0b0d1a" },
+                  ruins:{  sky1:"#0d1018", sky2:"#141a2b", hillFar:"#1a2230", hillNear:"#263448", cloud:"#b0b6bf", tile:"#40484f", tileTop:"#6b7280", fg:"#101826" } };
+function applyBiome(b){ const p=PALETTES[b]||PALETTES.meadow; document.body.style.background = `linear-gradient(${p.sky1}, ${p.sky1})`; }
+
+/* ======= BACKGROUND LAYERS ======= */
+function buildBackground(cols, rows){
+  const layers={ farMount:[], nearMount:[], clouds:[], fore:[] };
+  for(let i=0;i<Math.ceil(cols/14);i++){ layers.farMount.push({x: i*14*TILE + (RNG()*TILE*4|0), y: 260 + (Math.sin(i*0.4)*30|0), r: 140 + (RNG()*60|0)}); }
+  for(let i=0;i<Math.ceil(cols/10);i++){ layers.nearMount.push({x: i*10*TILE + (RNG()*TILE*3|0), y: 320 + (Math.sin(i*0.6)*25|0), w: 200 + (RNG()*80|0), h: 120+(RNG()*60|0)}); }
+  for(let i=0;i<Math.ceil(cols/8);i++){ layers.clouds.push({x: i*8*TILE + (RNG()*TILE*4|0), y: 80 + (RNG()*120|0), w: 120+(RNG()*140|0), h: 24+(RNG()*18|0), speed: 5+RNG()*10}); }
+  for(let i=0;i<Math.ceil(cols/6);i++){ layers.fore.push({x:i*6*TILE + (RNG()*TILE*3|0), y: (canvas.height/Math.max(DPR,1)) - 40 + (Math.sin(i)*6|0), h: 30+(RNG()*12|0)}); }
+  return layers;
+}
+function drawBackground(time){
+  if(!bgLayers){ return; }
+  const p=PALETTES[BIOME]||PALETTES.meadow; const viewW=canvas.width/Math.max(DPR,1), viewH=canvas.height/Math.max(DPR,1);
+  const grad=ctx.createLinearGradient(0,0,0,viewH); grad.addColorStop(0,p.sky1); grad.addColorStop(1,p.sky2); ctx.fillStyle=grad; ctx.fillRect(0,0,viewW,viewH);
+  ctx.save(); ctx.translate(-cam.x*0.10, -cam.y*0.05); ctx.fillStyle=p.hillFar; for(const m of bgLayers.farMount){ ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill(); } ctx.restore();
+  ctx.save(); ctx.translate(-cam.x*0.20, -cam.y*0.10); ctx.fillStyle=p.hillNear; for(const m of bgLayers.nearMount){ ctx.fillRect(m.x, m.y, m.w, m.h); } ctx.restore();
+  ctx.save(); ctx.translate(-cam.x*0.25, -cam.y*0.15); ctx.fillStyle=p.cloud; for(const c of bgLayers.clouds){ const x = c.x + (time*100)% (LEVEL_COLS*TILE); const r=Math.min(c.h/2, 16); ctx.beginPath(); ctx.moveTo(x, c.y); ctx.arc(x, c.y, r, Math.PI/2, -Math.PI/2); ctx.arc(x+c.w, c.y, r, -Math.PI/2, Math.PI/2); ctx.closePath(); ctx.fill(); } ctx.restore();
+  ctx.save(); ctx.translate(-cam.x*0.5, -cam.y*0.2); ctx.fillStyle=p.fg; for(const f of bgLayers.fore){ ctx.fillRect(f.x, f.y-f.h, 4, f.h); ctx.fillRect(f.x+8, f.y-(f.h*0.8), 3, f.h*0.8); } ctx.restore();
+}
+
+/* ======= TILE RENDER ======= */
+function drawTile(x,y,ch){ const p=PALETTES[BIOME]||PALETTES.meadow; if(ch==="="||ch==="#"){ ctx.fillStyle=p.tile; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.fillStyle=p.tileTop; ctx.fillRect(x*TILE,y*TILE,TILE,6); ctx.fillStyle="rgba(0,0,0,.25)"; ctx.fillRect(x*TILE+TILE-3,y*TILE,3,TILE); } }
+
+function draw(time){
+  try{
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    drawBackground((time||0)/1000);
+    if(!MAP.length) return;
+    ctx.save(); ctx.translate(-cam.x, -cam.y);
+    for(let y=0;y<MAP.length;y++){ for(let x=0;x<MAP[0].length;x++){ drawTile(x,y, MAP[y][x]); } }
+    for(const e of entities){
+      if(e.type==="portal"){ ctx.fillStyle = e.open? "#32d399" : "#38bdf8"; ctx.beginPath(); ctx.arc(e.x, e.y+TILE/2, 14, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = "#22324e"; ctx.strokeRect(e.x-18, e.y+TILE-2, 36, 6); if(!e.open){ ctx.fillStyle="rgba(56,189,248,0.25)"; ctx.fillRect(e.gateX, e.y, 8, TILE); } }
+      if(e.type==="door"){ if(!e.open){ ctx.fillStyle="#1b2640"; ctx.fillRect(e.x-16, e.y, 26, TILE); ctx.fillStyle="#32415e"; ctx.fillRect(e.x-16, e.y, 26, 6); } else { ctx.strokeStyle="#2a3a5a"; ctx.strokeRect(e.x-16, e.y, 26, TILE); } }
+      if(e.type==="key"){ if(!e.picked){ ctx.fillStyle="#ffd166"; ctx.fillRect(e.x-8, e.y-8, 16, 16); ctx.fillStyle="#00000088"; ctx.fillRect(e.x-10, e.y+10, 20, 4); } }
+      if(e.type==="camp"){ ctx.fillStyle="#ffedd5"; ctx.beginPath(); ctx.arc(e.x, e.y+12, 8, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.arc(e.x, e.y+8, 6, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#451a03"; ctx.fillRect(e.x-12, e.y+16, 24, 6); }
+      if(e.type==="anchor" && document.querySelector("#debug").checked){ ctx.fillStyle="#22c55e"; ctx.fillRect(e.x-2, e.y-2, 4, 4); }
     }
-  }
-  // Entities
-  for(const e of entities){
-    if(e.type==="portal"){
-      ctx.fillStyle = e.open? "#32d399" : "#38bdf8";
-      ctx.beginPath(); ctx.arc(e.x, e.y+TILE/2, 14, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = "#22324e"; ctx.strokeRect(e.x-18, e.y+TILE-2, 36, 6);
-      // Gate barrier (invisible if open)
-      if(!e.open){
-        ctx.fillStyle="rgba(56,189,248,0.25)";
-        ctx.fillRect(e.gateX, e.y, 8, TILE);
-      }
-    }
-    if(e.type==="door"){
-      if(!e.open){
-        ctx.fillStyle="#1b2640"; ctx.fillRect(e.x-16, e.y, 26, TILE);
-        ctx.fillStyle="#32415e"; ctx.fillRect(e.x-16, e.y, 26, 6);
-      } else {
-        ctx.strokeStyle="#2a3a5a"; ctx.strokeRect(e.x-16, e.y, 26, TILE);
-      }
-    }
-    if(e.type==="key"){
-      if(!e.picked){
-        ctx.fillStyle="#ffd166"; ctx.fillRect(e.x-8, e.y-8, 16, 16);
-        ctx.fillStyle="#00000088"; ctx.fillRect(e.x-10, e.y+10, 20, 4);
-      }
-    }
-    if(e.type==="camp"){
-      ctx.fillStyle="#ffedd5"; ctx.beginPath(); ctx.arc(e.x, e.y+12, 8, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.arc(e.x, e.y+8, 6, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle="#451a03"; ctx.fillRect(e.x-12, e.y+16, 24, 6);
-    }
-  }
-  // Player
-  ctx.fillStyle="#94a3b8"; ctx.fillRect(player.x, player.y, player.w, player.h);
-  // Little face
-  ctx.fillStyle="#0b1020"; ctx.fillRect(player.x+6+(player.facing>0?2:0), player.y+10, 4, 4);
-  ctx.restore();
+    ctx.fillStyle="#94a3b8"; ctx.fillRect(player.x, player.y, player.w, player.h); ctx.fillStyle="#0b1020"; ctx.fillRect(player.x+6+(player.facing>0?2:0), player.y+10, 4, 4);
+    ctx.restore();
+  } catch(err){ showError("Draw error: " + (err && err.message ? err.message : String(err))); }
 }
 
 /* ======= INTERACTION / QUESTIONS ======= */
-let rng = makeRNG("UW-KIN");
-function reseed(){
-  const s=document.querySelector("#seed").value.trim()||"UW-KIN";
-  rng=makeRNG(s);
-  toast("Seed set.");
-  // Shuffle order reference
-  shuffled={};
-}
-document.querySelector("#reseed").addEventListener("click", reseed);
-document.querySelector("#pack").addEventListener("change", e=>{
-  Progress.pack = e.target.value;
-  toast("Pack: "+(e.target.selectedOptions[0].textContent||e.target.value));
-});
+let shuffled={};
+function reseedRNG(){ const s=document.querySelector("#seed").value.trim()||"UW-KIN"; RNG=makeRNG(s+"#"+levelIndex+"#"+BIOME+"#"+LENGTH); shuffled={}; toast("Seed set. Rebuilding level..."); buildLevel(); }
+document.querySelector("#reseed").addEventListener("click", reseedRNG);
+document.querySelector("#pack").addEventListener("change", e=>{ Progress.pack = e.target.value; toast("Pack: "+(e.target.selectedOptions[0].textContent||e.target.value)); });
+document.querySelector("#new").addEventListener("click", ()=>{ levelIndex++; toast("New level: "+levelIndex); reseedRNG(); });
+document.querySelector("#biome").addEventListener("change", e=>{ BIOME = e.target.value; applyBiome(BIOME); reseedRNG(); });
+document.querySelector("#length").addEventListener("change", e=>{ LENGTH = e.target.value; LEVEL_COLS = (LENGTH==='short'? 200 : LENGTH==='medium'? 280 : LENGTH==='long'? 360 : 460); reseedRNG(); });
+document.querySelector("#jump").addEventListener("change", e=>{ JUMP = clamp(parseFloat(e.target.value)||680, 500, 900); toast("Jump set to " + Math.round(JUMP)); });
+document.querySelector("#grav").addEventListener("change", e=>{ GRAV = clamp(parseFloat(e.target.value)||1700, 1200, 2200); toast("Gravity set to " + Math.round(GRAV)); });
 
-let shuffled={}; // per-pack shuffled indices
-function pickQuestion(pack){
-  // Prefer recent misses in that pack
-  const miss = Progress.misses.findLast?.(m=>m.pack===pack);
-  if(miss){
-    const arr = QUESTION_BANK[pack];
-    const q = arr.find(z=>z.id===miss.id) || arr[(arr.length-1) * rng()|0];
-    return q;
-  }
-  if(!shuffled[pack]){
-    const arr = QUESTION_BANK[pack].map((_,i)=>i);
-    for(let i=arr.length-1;i>0;i--){ const j=(rng()* (i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; }
-    shuffled[pack]=arr;
-  }
-  const idxList=shuffled[pack];
-  if(idxList.length===0){ shuffled[pack]=null; return pickQuestion(pack); }
-  const idx=idxList.pop();
-  return QUESTION_BANK[pack][idx];
-}
+function pickQuestion(pack){ const arr = QUESTION_BANK[pack]; if(!arr) return null; let miss=null; for(let i=Progress.misses.length-1;i>=0;i--){ if(Progress.misses[i].pack===pack){ miss=Progress.misses[i]; break; } } if(miss){ const q = arr.find(z=>z.id===miss.id); if(q) return q; } return arr[(arr.length * RNG())|0]; }
 
-const modal=document.querySelector("#modal");
-const qtext=document.querySelector("#qtext");
-const opts=document.querySelector("#opts");
-const hint=document.querySelector("#hint");
-const qtitle=document.querySelector("#qtitle");
-document.querySelector("#close").addEventListener("click",()=>{ modal.style.display="none"; });
-function askQuestion(q, onDone){
-  qtitle.textContent = "Quick Check";
-  qtext.textContent = q.text;
-  hint.style.display="none";
-  opts.innerHTML="";
-  q.options.forEach((opt, i)=>{
-    const b=document.createElement("button");
-    b.textContent=opt;
-    b.addEventListener("click",()=>{
-      const correct = i===q.correct;
-      Progress.log(correct, q.id);
-      if(correct){
-        b.classList.add("ok");
-        setTimeout(()=>{ modal.style.display="none"; onDone(true); }, 180);
-      } else {
-        b.classList.add("bad");
-        hint.textContent="Hint: "+(q.hint||"Re‑read the stem.");
-        hint.style.display="block";
-      }
-    });
-    opts.appendChild(b);
-  });
-  modal.style.display="flex";
-}
-function toast(msg, ms=1500){
-  const t=document.querySelector("#toast");
-  t.textContent=msg; t.style.display="block";
-  clearTimeout(toast._t); toast._t=setTimeout(()=>{ t.style.display="none"; }, ms);
-}
+const modal=document.querySelector("#modal"); const qtext=document.querySelector("#qtext"); const opts=document.querySelector("#opts"); const hint=document.querySelector("#hint"); const qtitle=document.querySelector("#qtitle"); document.querySelector("#close").addEventListener("click",()=>{ modal.style.display="none"; });
+function askQuestion(q, onDone){ if(!q){ onDone(true); return; } qtitle.textContent = "Quick Check"; qtext.textContent = q.text; hint.style.display="none"; opts.innerHTML=""; q.options.forEach((opt, i)=>{ const b=document.createElement("button"); b.textContent=opt; b.addEventListener("click",()=>{ const correct = i===q.correct; Progress.log(correct, q.id); if(correct){ b.classList.add("ok"); setTimeout(()=>{ modal.style.display="none"; onDone(true); }, 180); } else { b.classList.add("bad"); hint.textContent="Hint: "+(q.hint||"Re-read the stem."); hint.style.display="block"; } }); opts.appendChild(b); }); modal.style.display="flex"; }
+function toast(msg, ms=1500){ const t=document.querySelector("#toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast._t); toast._t=setTimeout(()=>{ t.style.display="none"; }, ms); }
 
 /* ======= INTERACTABLE LOGIC ======= */
 function near(a,b,dist=28){ return Math.hypot(a.x+10-b.x, a.y+14-b.y) < dist; }
-
 function handleInteractions(){
-  // Key pickup
+  if(!entities.length) return;
   const keyEnt=entities.find(e=>e.type==="key" && !e.picked);
-  if(keyEnt && near(player,keyEnt,30)){
-    // auto-pick
-    keyEnt.picked=true; player.hasKey=true;
-    toast("Picked up muscle key: Tibialis Anterior");
-  }
-  // Portal
+  if(keyEnt && near(player,keyEnt,30)){ keyEnt.picked=true; player.hasKey=true; toast("Picked up muscle key: Tibialis Anterior"); }
   const portal=entities.find(e=>e.type==="portal");
-  if(portal && near(player,{x:portal.x, y:portal.y+TILE/2}) && keys.Interact){
-    keys.Interact=false;
-    const q = pickQuestion("planes_axes");
-    Progress.pack="planes_axes";
-    askQuestion(q, ok=>{
-      if(ok){ portal.open=true; toast("Portal stabilized."); }
-    });
+  if(portal && near(player,{x:portal.x, y:portal.y+TILE/2}) && (press.interact || keys.Interact)){
+    press.interact=false; const q = pickQuestion("planes_axes"); Progress.pack="planes_axes";
+    askQuestion(q, ok=>{ if(ok){ portal.open=true; toast("Portal stabilized."); checkpoint={x: portal.x+3*TILE, y: portal.y}; } });
   }
-  // Block passage at portal if closed
   if(portal && !portal.open && player.x+player.w > portal.gateX-2 && player.y+player.h > portal.y && player.y < portal.y+TILE){
     player.x = portal.gateX - player.w - 2; player.vx=0;
   }
-  // Door (needs key)
   const door=entities.find(e=>e.type==="door");
-  if(door && near(player,{x:door.x, y:door.y+TILE/2}) && keys.Interact){
-    keys.Interact=false;
+  if(door && near(player,{x:door.x, y:door.y+TILE/2}) && (press.interact || keys.Interact)){
+    press.interact=false;
     if(!player.hasKey){ toast("Needs a muscle key."); return; }
-    const q = pickQuestion("muscle_actions");
-    Progress.pack="muscle_actions";
-    askQuestion(q, ok=>{
-      if(ok){ door.open=true; toast("Door unlocked."); }
-    });
+    const q = pickQuestion("muscle_actions"); Progress.pack="muscle_actions";
+    askQuestion(q, ok=>{ if(ok){ door.open=true; toast("Door unlocked. Level clear!"); } });
   }
-  // Door collision if closed
   if(door && !door.open && player.x+player.w > door.x-14 && player.x < door.x+14 && player.y+player.h > door.y && player.y < door.y+TILE){
-    if(player.facing>0) player.x = door.x-14 - player.w - 1; else player.x = door.x+14 + 1;
-    player.vx=0;
+    if(player.facing>0) player.x = door.x-14 - player.w - 1; else player.x = door.x+14 + 1; player.vx=0;
   }
-  // Campfire review
   const camp=entities.find(e=>e.type==="camp");
-  if(camp && near(player,camp,36) && keys.Interact){
-    keys.Interact=false; campfireReview();
-  }
+  if(camp && near(player,camp,36) && (press.interact || keys.Interact)){ press.interact=false; campfireReview(); }
 }
-
-function campfireReview(){
-  const count=3; let asked=0, correct=0;
-  function askNext(){
-    if(asked>=count){
-      if(correct>=2){ player.lives++; document.querySelector("#lives").textContent=player.lives; toast("Bonus life earned!"); }
-      else toast("Keep practising. You got "+correct+"/"+count+" right.");
-      return;
-    }
-    asked++;
-    // pull from last misses of current pack else from pack
-    const pack=document.querySelector("#pack").value;
-    const miss = Progress.misses.findLast?.(m=>m.pack===pack);
-    const q = miss ? (QUESTION_BANK[pack].find(z=>z.id===miss.id)||pickQuestion(pack)) : pickQuestion(pack);
-    qtitle.textContent = "Campfire Review ("+asked+"/"+count+")";
-    askQuestion(q, ok=>{ if(ok) correct++; askNext(); });
-  }
-  askNext();
-}
-
-/* ======= QUICK CHECK (double‑click canvas) ======= */
-canvas.addEventListener("dblclick", ()=>{
-  const pack=document.querySelector("#pack").value;
-  const q=pickQuestion(pack);
-  askQuestion(q, ok=>{ if(ok){ player.pc=1; toast("Dash refilled!"); } });
-});
+function campfireReview(){ const count=3; let asked=0, correct=0; function askNext(){ if(asked>=count){ if(correct>=2){ player.lives++; document.querySelector("#lives").textContent=player.lives; toast("Bonus life earned!"); } else toast("Keep practising. You got "+correct+"/"+count+" right."); return; } asked++; const pack=document.querySelector("#pack").value; const q = pickQuestion(pack); qtitle.textContent = "Campfire Review ("+asked+"/"+count+")"; askQuestion(q, ok=>{ if(ok) correct++; askNext(); }); } askNext(); }
+canvas.addEventListener("dblclick", ()=>{ const pack=document.querySelector("#pack").value; const q=pickQuestion(pack); askQuestion(q, ok=>{ if(ok){ player.pc=1; toast("Dash refilled!"); } }); });
 
 /* ======= EXPORT ======= */
 document.querySelector("#export").addEventListener("click",()=>Progress.export());
 
-/* ======= SPEED CONTROL ======= */
-document.querySelector("#speed").addEventListener("change", e=>{
-  SPEED = clamp((parseFloat(e.target.value)||100)/100, 0.5, 1.4);
-  toast("Game speed "+Math.round(SPEED*100)+"%");
-});
+/* ======= PROCEDURAL GENERATION (Playable) ======= */
+const MAX_STEP_UP = 4, MAX_STEP_DOWN = 5, MAX_GAP = 10, MIN_ROW = 3, SAFE_ROWS_FROM_BOTTOM = 4;
+function placeRect(grid, x0,y0,w,h,char){ for(let y=y0;y<y0+h;y++){ if(y<0 || y>=grid.length) continue; for(let x=x0;x<x0+w;x++){ if(x<0 || x>=grid[0].length) continue; grid[y][x]=char; } } }
+function topSurfaceY(grid, col){ for(let y=0;y<grid.length;y++){ const isSolid = (grid[y][col]==="#" || grid[y][col]==="="); const above = (y>0? grid[y-1][col] : "."); if(isSolid && above==="."){ return y-1; } } return grid.length-4; }
+function makeIsland(grid, cx, srow, w){ placeRect(grid, cx-Math.floor(w/2), srow+1, w, 1, '#'); }
+function makeStairs(grid, x0, srow, steps, dir){ for(let i=0;i<steps;i++){ placeRect(grid, x0 + dir*i*3, srow - i + 1, 3, 1, '#'); } }
+function makeBridge(grid, x0, x1, srow){ const w = Math.max(3, x1-x0); placeRect(grid, x0, srow+1, w, 1, '#'); }
+function buildAnchorPath(grid, startCol, endCol){
+  const rows=grid.length, cols=grid[0].length, anchors=[]; let srow = topSurfaceY(grid, startCol), col = startCol; anchors.push({col, srow});
+  while(col < endCol){
+    const stepX = 7 + Math.floor(RNG()*9); const progress = (col-startCol)/(endCol-startCol); let dy=0; const r = RNG();
+    if(progress<0.35){ dy = (r<0.55)? -1 : (r<0.8? 0 : +1); } else if(progress<0.75){ dy = (r<0.6)? 0 : (r<0.8? -1 : +1); } else { dy = (r<0.55)? 0 : (r<0.75? +1 : -1); }
+    let nextS = clamp(srow + dy, MIN_ROW, rows - SAFE_ROWS_FROM_BOTTOM); if(srow - nextS > MAX_STEP_UP) nextS = srow - MAX_STEP_UP; if(nextS - srow > MAX_STEP_DOWN) nextS = srow + MAX_STEP_DOWN;
+    const shapePick = RNG(); const cx = clamp(col + stepX + Math.floor(RNG()*3)-1, 3, cols-4);
+    if(shapePick<0.35){ makeIsland(grid, cx, nextS, 4 + (RNG()*3|0)); } else if(shapePick<0.6){ makeBridge(grid, cx-2, cx+2 + (RNG()*3|0), nextS); } else { makeStairs(grid, cx-3, nextS, 2 + (RNG()*3|0), RNG()<0.5?1:-1); }
+    anchors.push({col:cx, srow:nextS});
+    const last=anchors[anchors.length-2], cur=anchors[anchors.length-1]; const dx = Math.abs(cur.col - last.col), dyabs = Math.abs(cur.srow - last.srow);
+    if(dx > MAX_GAP){ const n = Math.ceil(dx / MAX_GAP); for(let k=1;k<n;k++){ const ix = Math.floor( lerp(last.col, cur.col, k/n) ); const iy = Math.floor( lerp(last.srow, cur.srow, k/n) ); makeIsland(grid, ix, iy, 3); anchors.push({col:ix, srow:iy}); } }
+    if(dyabs>MAX_STEP_UP){ const midS = last.srow - Math.sign(last.srow-cur.srow)*Math.min(2, Math.floor(MAX_STEP_UP/2)); const midX = Math.floor((last.col + cur.col)/2); makeIsland(grid, midX, midS, 3); anchors.push({col:midX, srow:midS}); }
+    col = cx; srow = nextS;
+  }
+  anchors.sort((a,b)=>a.col-b.col); return anchors;
+}
+function generateMap(cols, rows){
+  const g = Array.from({length:rows},()=>Array.from({length:cols},()=>'.'));
+  for(let x=0;x<cols;x++){ g[rows-1][x]='='; g[rows-2][x]='='; }
+  for(let x=12; x<cols-12; x+= (10 + (RNG()*16|0))){ if(RNG()<0.22){ const gap = 2 + (RNG()*4|0); for(let k=0;k<gap;k++){ g[rows-1][x+k]='.'; g[rows-2][x+k]='.'; } } }
+  const anchors = buildAnchorPath(g, 2, cols-6);
+  return {grid:g, anchors};
+}
+function rebuildEntitiesFromMap(g, anchors){
+  entities=[]; spawn={x:2*TILE, y:(g.length-6)*TILE}; checkpoint={...spawn};
+  if(anchors.length){ const s=anchors[0]; spawn = {x: s.col*TILE, y: s.srow*TILE}; checkpoint = {...spawn}; }
+  function placeMarker(ch, anchorIndex){ const a = anchors[Math.min(anchors.length-1, Math.max(0, anchorIndex))]; if(!a) return; const y = a.srow; const x = a.col; g[y][x] = ch; }
+  const idxP = Math.max(1, Math.floor(anchors.length*0.25)), idxG = Math.max(idxP+3, Math.floor(anchors.length*0.92)), idxC = Math.max(1, Math.floor(anchors.length*0.10)), idxK = Math.max(idxP+1, Math.floor(anchors.length*0.55));
+  placeMarker('P', idxP); placeMarker('G', idxG); placeMarker('S', 0); placeMarker('C', idxC); placeMarker('K', idxK);
+  MAP = g.map(row=>row.join(''));
+  for(let y=0;y<g.length;y++){ for(let x=0;x<g[0].length;x++){ const ch=g[y][x]; if(ch==="P") entities.push({type:"portal", x:x*TILE+TILE/2, y:y*TILE, open:false, gateX:(x+1)*TILE-6}); if(ch==="G") entities.push({type:"door", x:x*TILE+TILE/2, y:y*TILE, open:false}); if(ch==="C") entities.push({type:"camp", x:x*TILE+16, y:y*TILE-16}); if(ch==="K") entities.push({type:"key", label:"Tibialis Anterior", x:x*TILE+16, y:y*TILE-8, picked:false}); } }
+  anchors.forEach(a=>entities.push({type:"anchor", x:a.col*TILE+16, y:a.srow*TILE+16}));
+}
+function buildLevel(){
+  try{
+    const cols = LEVEL_COLS, rows = 24; const {grid, anchors} = generateMap(cols, rows); rebuildEntitiesFromMap(grid, anchors); bgLayers = buildBackground(cols, rows);
+    player.x = spawn.x; player.y = spawn.y; player.vx=0; player.vy=0; player.onGround=false; player.coyote=0; player.airJumps=player.maxAirJumps; player.hasKey=false; player.pc=1;
+  } catch(err){ showError("BuildLevel error: " + (err && err.message ? err.message : String(err))); }
+}
+
+/* ======= INIT ======= */
+document.querySelector("#export").addEventListener("click",()=>Progress.export());
+document.querySelector("#seed").addEventListener("change", ()=>reseedRNG());
+applyBiome(BIOME); reseedRNG(); // Build first level
+toast("Loaded! Use A/D to move, Space to jump.", 2000);
 
 /* ======= MAIN LOOP ======= */
 let last=performance.now();
-function loop(t){
-  const dt = clamp((t-last)/1000, 0, 0.05)*SPEED; last=t;
-  updatePlayer(dt);
-  handleInteractions();
-  updateCam(dt);
-  draw();
-  requestAnimationFrame(loop);
-}
+function loop(t){ const dt = clamp((t-last)/1000, 0, 0.05)*SPEED; last=t;
+  if(!MAP.length){ buildLevel(); }
+  if(!bgLayers){ bgLayers = buildBackground(LEVEL_COLS, 24); }
+  updatePlayer(dt); handleInteractions(); updateCam(dt); draw(t); requestAnimationFrame(loop); }
 requestAnimationFrame(loop);
 </script>
 </body>
