@@ -498,9 +498,14 @@ class Level {
     }
 
     // Exit portal: inside exit chunk, 4 tiles from its left edge
-    this.exitX = (segs.length - 1) * CHUNK_W * TS + TS * 4;
-    this.exitY = (CHUNK_H - 2) * TS;
+    this.exitX    = (segs.length - 1) * CHUNK_W * TS + TS * 4;
+    this.exitY    = (CHUNK_H - 2) * TS;
     this.exitOpen = false;
+
+    // Spawn enemies in mid-chunks
+    if (!this.isBoss) this.spawnEnemies(this.floor);
+    // Exit opens immediately if no enemies were spawned
+    if (this.enemies.length === 0) this.exitOpen = true;
   }
 
   getTile(col, row) {
@@ -512,6 +517,34 @@ class Level {
   isSpike(c, r)    { return this.getTile(c, r) === 3; }
   get pxW() { return this.tileW * TS; }
   get pxH() { return this.tileH * TS; }
+
+  // ── Enemy spawning (called after tile layout) ──────────────
+  spawnEnemies(floor) {
+    const ETYPES = ['walker', 'shooter', 'jumper'];
+    // segs.length = tileW / CHUNK_W
+    const numSegs = this.tileW / CHUNK_W;
+    for (let si = 1; si < numSegs - 1; si++) {
+      const maxE = clamp(floor, 1, 3);
+      const numE = rng.int(1, maxE);
+      for (let k = 0; k < numE; k++) {
+        const type = rng.pick(ETYPES);
+        const eh   = type === 'shooter' ? 12 : 10;
+        const ew   = type === 'shooter' ? 12 : 10;
+        // Random column within this chunk (avoid edges)
+        const tc = si * CHUNK_W + rng.int(3, CHUNK_W - 4);
+        // Find highest empty row above solid ground
+        for (let tr = CHUNK_H - 2; tr >= 2; tr--) {
+          const here  = this.getTile(tc, tr);
+          const below = this.getTile(tc, tr + 1);
+          if (here === 0 && (below === 1 || below === 2)) {
+            // Enemy bottom rests on top of row tr+1
+            this.enemies.push(newEnemy(type, tc * TS, (tr + 1) * TS - eh, ew, eh));
+            break;
+          }
+        }
+      }
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -771,6 +804,223 @@ function updateProjectiles(projs, level) {
     if (p.x < 0 || p.x > level.pxW || p.y < 0 || p.y > level.pxH) p.dead = true;
   }
   return projs.filter(p => !p.dead);
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENEMIES
+// ─────────────────────────────────────────────────────────────
+function newEnemy(type, x, y, w, h) {
+  return {
+    type, x, y, w, h,
+    vx: type === 'walker' ? 0.72 : 0,
+    vy: 0,
+    hp:    type === 'shooter' ? 3 : 2,
+    maxHp: type === 'shooter' ? 3 : 2,
+    dir: 1,
+    onGround: false,
+    frame:      0,
+    hurtTimer:  0,
+    // type-specific timers (seeded per enemy for desync)
+    shootTimer: rng.int(60, 140),
+    jumpTimer:  rng.int(30, 90),
+    dead: false,
+  };
+}
+
+// Walker: patrols back-and-forth, turns at walls and ledges
+function updateWalker(e, level) {
+  // Ledge detection (look one step ahead at foot level)
+  if (e.onGround) {
+    const ahead = e.x + (e.dir > 0 ? e.w + 2 : -3);
+    const footR = Math.floor((e.y + e.h) / TS);
+    const col   = Math.floor(ahead / TS);
+    if (!level.isSolid(col, footR) && !level.isPlatform(col, footR)) {
+      e.dir *= -1;
+    }
+  }
+  e.vx = e.dir * 0.72;
+  moveAndCollide(e, level);
+  // Wall reversal (moveAndCollide zeroed vx on collision)
+  if (e.vx === 0) e.dir *= -1;
+  // Level-edge reversal
+  if (e.x <= 1 && e.dir < 0)              e.dir = 1;
+  if (e.x + e.w >= level.pxW - 1 && e.dir > 0) e.dir = -1;
+}
+
+// Shooter: stationary, fires toward player when in range
+function updateShooter(e, level, player, projectiles) {
+  e.vx = 0;
+  moveAndCollide(e, level);
+  e.dir = player.x > e.x ? 1 : -1;
+  e.shootTimer--;
+  if (e.shootTimer <= 0) {
+    e.shootTimer = rng.int(90, 160);
+    const dx = player.x + player.w / 2 - (e.x + e.w / 2);
+    const dy = player.y + player.h / 2 - (e.y + e.h / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 220) {
+      const spd = 2.4;
+      projectiles.push(newProjectile(
+        e.x + e.w / 2, e.y + e.h / 2,
+        (dx / dist) * spd, (dy / dist) * spd,
+        'enemy', C.enemy,
+      ));
+    }
+  }
+}
+
+// Jumper: jumps periodically, drifts toward player in air
+function updateJumper(e, level, player) {
+  e.jumpTimer--;
+  if (e.jumpTimer <= 0 && e.onGround) {
+    e.jumpTimer = rng.int(40, 100);
+    e.vy = -5.0;
+    const dx = player.x - e.x;
+    e.vx = Math.sign(dx) * (1.2 + rng.next() * 1.2);
+  }
+  // Air drift toward player
+  if (!e.onGround) {
+    const dx = player.x - e.x;
+    e.vx = clamp(e.vx + Math.sign(dx) * 0.06, -2.8, 2.8);
+  }
+  moveAndCollide(e, level);
+  e.dir = e.vx >= 0 ? 1 : -1;
+  // Level-edge bounce
+  if (e.x <= 1 && e.vx < 0)              { e.vx *= -1; e.dir = 1; }
+  if (e.x + e.w >= level.pxW - 1 && e.vx > 0) { e.vx *= -1; e.dir = -1; }
+}
+
+function updateEnemy(e, level, player, projectiles) {
+  if (e.dead) return;
+  e.frame++;
+  if (e.hurtTimer > 0) e.hurtTimer--;
+
+  if      (e.type === 'walker')  updateWalker(e, level);
+  else if (e.type === 'shooter') updateShooter(e, level, player, projectiles);
+  else if (e.type === 'jumper')  updateJumper(e, level, player);
+}
+
+function hurtEnemy(e, dmg, player) {
+  if (e.dead) return false;
+  e.hp -= dmg;
+  e.hurtTimer = 8;
+  spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ffe040', 4,
+    { vxRange: 2, vyRange: 2, vyBias: -1.5, life: 10, size: 1.5 });
+  if (player.hasLifesteal) player.hp = Math.min(player.maxHp, player.hp + 0.5);
+  if (e.hp <= 0) { killEnemy(e); return true; }
+  return false;
+}
+
+function killEnemy(e) {
+  e.dead = true;
+  const col = e.type === 'jumper' ? '#cc00ff' : C.enemy;
+  spawnParticles(e.x + e.w / 2, e.y + e.h / 2, col, 12,
+    { vxRange: 3.5, vyRange: 3.5, vyBias: -2, life: 28, size: 2 });
+  // Coin drop (always)
+  // Returned to calling site to insert into level.coins
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — ENEMIES
+// ─────────────────────────────────────────────────────────────
+function drawEnemy(e, camX, camY) {
+  if (e.dead) return;
+  const sx = Math.round(e.x - camX);
+  const sy = Math.round(e.y - camY);
+  // Cull off-screen
+  if (sx + e.w < -4 || sx > GW + 4 || sy + e.h < -4 || sy > GH + 4) return;
+
+  // Hurt flash
+  if (e.hurtTimer > 0 && Math.floor(e.hurtTimer / 2) % 2 === 1) return;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  if (e.dir < 0) { ctx.translate(e.w, 0); ctx.scale(-1, 1); }
+
+  if (e.type === 'walker') {
+    ctx.shadowColor = C.enemy;
+    ctx.shadowBlur  = 6;
+    // Body
+    ctx.fillStyle = C.enemyDim;
+    ctx.fillRect(0, 1, 10, 8);
+    // Armor stripes
+    ctx.fillStyle = C.enemy;
+    ctx.fillRect(0, 1, 2, 7);   // left
+    ctx.fillRect(8, 1, 2, 7);   // right
+    ctx.fillRect(0, 1, 10, 2);  // top
+    // Eyes
+    ctx.shadowColor = '#ffff00';
+    ctx.shadowBlur  = 4;
+    ctx.fillStyle   = '#ffee00';
+    ctx.fillRect(2, 3, 2, 2);
+    ctx.fillRect(6, 3, 2, 2);
+    // Animated legs
+    ctx.shadowColor = C.enemy;
+    ctx.shadowBlur  = 4;
+    ctx.fillStyle   = C.enemy;
+    const leg = Math.sin(e.frame * 0.3) * 2;
+    ctx.fillRect(1, 9, 3, 1 + Math.max(0,  leg));
+    ctx.fillRect(6, 9, 3, 1 + Math.max(0, -leg));
+
+  } else if (e.type === 'shooter') {
+    ctx.shadowColor = '#ff7700';
+    ctx.shadowBlur  = 7;
+    // Body
+    ctx.fillStyle = '#5c1800';
+    ctx.fillRect(0, 0, 12, 11);
+    ctx.fillStyle = '#ff7700';
+    ctx.fillRect(0, 0, 2, 10);
+    ctx.fillRect(10, 0, 2, 10);
+    ctx.fillRect(0, 0, 12, 2);
+    // Eye (pulsing)
+    const ePulse = 0.6 + 0.4 * Math.sin(e.frame * 0.15);
+    ctx.shadowColor = '#ff2200';
+    ctx.shadowBlur  = 6 * ePulse;
+    ctx.fillStyle   = `rgb(255,${Math.floor(50 + 40 * ePulse)},0)`;
+    ctx.fillRect(4, 3, 4, 4);
+    // Cannon
+    ctx.shadowColor = '#ff7700';
+    ctx.shadowBlur  = 5;
+    ctx.fillStyle   = '#994400';
+    ctx.fillRect(10, 5, 5, 3);
+    ctx.fillStyle   = '#ff7700';
+    ctx.fillRect(14, 5, 2, 3);
+
+  } else if (e.type === 'jumper') {
+    // Bob when on ground
+    const bob = e.onGround ? Math.sin(e.frame * 0.12) * 1.5 : 0;
+    ctx.translate(0, bob);
+    ctx.shadowColor = '#cc00ff';
+    ctx.shadowBlur  = 8;
+    // Body
+    ctx.fillStyle = '#3a0050';
+    ctx.fillRect(1, 1, 8, 8);
+    ctx.fillStyle = '#cc00ff';
+    ctx.fillRect(1, 1, 2, 7);
+    ctx.fillRect(7, 1, 2, 7);
+    ctx.fillRect(1, 1, 8, 2);
+    ctx.fillRect(1, 7, 8, 2);
+    // Eyes
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur  = 5;
+    ctx.fillStyle   = '#ffffff';
+    ctx.fillRect(2, 3, 2, 2);
+    ctx.fillRect(6, 3, 2, 2);
+    // Antennae
+    ctx.shadowColor = '#cc00ff';
+    ctx.shadowBlur  = 4;
+    ctx.fillStyle   = '#cc00ff';
+    ctx.fillRect(3, 0, 1, 2);
+    ctx.fillRect(6, 0, 1, 2);
+  }
+
+  ctx.restore();
+
+  // HP bar above head (only when not at full HP)
+  if (e.hp < e.maxHp) {
+    fillRect(sx, sy - 4, e.w, 2, '#300');
+    fillRect(sx, sy - 4, Math.ceil(e.w * e.hp / e.maxHp), 2, '#f33');
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1144,40 +1394,96 @@ function update() {
 
   } else if (gameState === 'playing') {
     updatePlayer(player, level, projectiles);
+
+    // ── Update enemies ──────────────────────────────────────
+    for (const e of level.enemies) {
+      updateEnemy(e, level, player, projectiles);
+    }
+
+    // ── Player melee attack vs enemies (fires on first frame) ──
+    if (player.atkTimer === ATK_FRAMES) {
+      const hb = playerAtkHitbox(player);
+      if (hb) {
+        for (const e of level.enemies) {
+          if (!e.dead && overlaps(hb, e)) {
+            const killed = hurtEnemy(e, 1, player);
+            if (killed) {
+              // Drop a coin at enemy location
+              level.coins.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, taken: false });
+            }
+          }
+        }
+      }
+    }
+
+    // ── Player projectiles vs enemies ──────────────────────
+    for (const proj of projectiles) {
+      if (proj.owner !== 'player' || proj.dead) continue;
+      for (const e of level.enemies) {
+        if (!e.dead && overlaps(proj, e)) {
+          proj.dead = true;
+          const killed = hurtEnemy(e, 1, player);
+          if (killed) level.coins.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, taken: false });
+        }
+      }
+    }
+
+    // ── Enemy contact vs player ─────────────────────────────
+    for (const e of level.enemies) {
+      if (e.dead) continue;
+      if (player.hurtCooldown > 0) break;
+      if (!overlaps(player, e)) continue;
+      // Regular dash (no phase) grants brief immunity
+      if (player.dashTimer > 0 && !player.hasPhaseDash) continue;
+      hurtPlayer(player, 1);
+    }
+
+    // ── Enemy projectiles vs player ─────────────────────────
+    for (const proj of projectiles) {
+      if (proj.owner !== 'enemy' || proj.dead) continue;
+      if (player.hurtCooldown > 0) continue;
+      if (!overlaps(proj, player)) continue;
+      // Phase-dash: immune to projectiles while dashing
+      if (player.dashTimer > 0 && player.hasPhaseDash) continue;
+      proj.dead = true;
+      hurtPlayer(player, 1);
+    }
+
     projectiles = updateProjectiles(projectiles, level);
     updateParticles();
     updateCamera(camera, player, level);
 
-    // Coin pickup
+    // ── Coin pickup ─────────────────────────────────────────
     for (const coin of level.coins) {
       if (!coin.taken &&
-          Math.abs(player.x + player.w / 2 - coin.x) < 12 &&
-          Math.abs(player.y + player.h / 2 - coin.y) < 12) {
+          Math.abs(player.x + player.w / 2 - coin.x) < 14 &&
+          Math.abs(player.y + player.h / 2 - coin.y) < 14) {
         coin.taken = true;
         player.coins++;
         coinsRun++;
-        spawnParticles(coin.x - camera.x, coin.y - camera.y, C.coin, 5,
+        // Use world coords (drawParticles subtracts camX/camY)
+        spawnParticles(coin.x, coin.y, C.coin, 5,
           { vxRange: 1.5, vyRange: 1.5, vyBias: -1, life: 14, size: 1.5 });
       }
     }
 
-    // All enemies dead → open exit  (placeholder: just open immediately for now)
+    // ── Exit: open when all enemies cleared ─────────────────
     if (!level.exitOpen && level.enemies.every(e => e.dead)) {
       level.exitOpen = true;
     }
 
-    // Exit portal collision
+    // ── Exit portal collision ───────────────────────────────
     if (level.exitOpen) {
       const portal = { x: level.exitX - 8, y: level.exitY - 16, w: 20, h: 24 };
       if (overlaps(player, portal)) {
-        // Placeholder win for step 2 — just go back to title
+        // Placeholder: save coins and return to title (full flow in step 4)
         meta.coins += coinsRun;
         saveMeta(meta);
         gameState = 'title';
       }
     }
 
-    // Player dead
+    // ── Player dead ─────────────────────────────────────────
     if (player.dead) {
       meta.coins += coinsRun;
       saveMeta(meta);
@@ -1206,6 +1512,9 @@ function render() {
     drawCoins(level, cx, cy, frame);
     drawExit(level, cx, cy, frame);
     drawParticles(cx, cy);
+
+    // Draw enemies
+    for (const e of level.enemies) drawEnemy(e, cx, cy);
 
     // Draw projectiles
     for (const proj of projectiles) {
