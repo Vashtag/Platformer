@@ -2,24 +2,115 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
 <title>VAULT RUN</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; cursor: none; }
+
+  #wrap {
+    position: fixed; inset: 0;
+    display: grid; place-items: center;
     background: #000;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100vw;
-    height: 100vh;
   }
-  canvas { display: block; image-rendering: pixelated; cursor: none; }
+  /* Ambient room glow */
+  #wrap::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(57,255,20,0.07) 0%, transparent 60%);
+    z-index: 0;
+  }
+
+  /* ── CRT container ── */
+  #crt-container {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow:
+      0 0 60px  rgba(57,255,20,0.18),
+      0 0 120px rgba(57,255,20,0.06),
+      inset 0 0 1px rgba(255,255,255,0.08);
+    animation: crt-on 0.8s ease-out;
+  }
+  /* Glass reflection */
+  #crt-container::before {
+    content: ''; position: absolute; inset: -2px; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.05), transparent 40%, transparent 60%, rgba(255,255,255,0.02));
+    z-index: 14; pointer-events: none;
+  }
+
+  /* Phosphor bloom */
+  #phosphor-canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 9;
+    opacity: 0.16; filter: blur(3px);
+  }
+
+  /* Scanlines */
+  #scanlines {
+    position: absolute; inset: 0; pointer-events: none; z-index: 10;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0,0,0,0)    0px, rgba(0,0,0,0)    1px,
+      rgba(0,0,0,0.35) 1px, rgba(0,0,0,0.35) 2px
+    );
+    mix-blend-mode: multiply;
+  }
+
+  /* RGB sub-pixel */
+  #rgb-grid {
+    position: absolute; inset: 0; pointer-events: none; z-index: 11; opacity: 0.03;
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(255,0,0,1) 0px, rgba(255,0,0,1) 1px,
+      rgba(0,255,0,1) 1px, rgba(0,255,0,1) 2px,
+      rgba(0,0,255,1) 2px, rgba(0,0,255,1) 3px
+    );
+    background-size: 3px 1px;
+  }
+
+  /* Vignette */
+  #crt-glow {
+    position: absolute; inset: 0; pointer-events: none; z-index: 12;
+    box-shadow:
+      inset 0 0  80px rgba(0,0,0,0.80),
+      inset 0 0 160px rgba(0,0,0,0.50),
+      inset 0 0 280px rgba(0,0,0,0.30);
+    border-radius: 16px;
+  }
+
+  /* Flicker */
+  #flicker {
+    position: absolute; inset: 0; pointer-events: none; z-index: 13;
+    opacity: 0; background: rgba(57,255,20,0.03);
+    animation: crt-flicker 0.15s infinite;
+  }
+  @keyframes crt-flicker {
+    0%  { opacity: 0 }   5%  { opacity: 1 }
+    10% { opacity: 0 }   15% { opacity: 0.5 }
+    20% { opacity: 0 }   100%{ opacity: 0 }
+  }
+
+  /* Turn-on animation */
+  @keyframes crt-on {
+    0%  { filter: brightness(30) saturate(0); transform: scaleY(0.005) scaleX(0.8); }
+    40% { filter: brightness(5)  saturate(0.5); transform: scaleY(0.9)  scaleX(1);  }
+    70% { filter: brightness(1.5) saturate(1);  transform: scaleY(1.02) scaleX(1);  }
+    100%{ filter: brightness(1)  saturate(1);   transform: scaleY(1)   scaleX(1);   }
+  }
 </style>
 </head>
 <body>
-<canvas id="crt"></canvas>
+<div id="wrap">
+  <div id="crt-container">
+    <canvas id="game"></canvas>
+    <canvas id="phosphor-canvas"></canvas>
+    <div id="scanlines"></div>
+    <div id="rgb-grid"></div>
+    <div id="crt-glow"></div>
+    <div id="flicker"></div>
+  </div>
+</div>
 <script>
 'use strict';
 
@@ -146,21 +237,29 @@ function clearInput()   { for (const k in pressed) delete pressed[k]; }
 // ─────────────────────────────────────────────────────────────
 // CANVAS SETUP
 // ─────────────────────────────────────────────────────────────
-const crtCanvas = document.getElementById('crt');
-const crtCtx    = crtCanvas.getContext('2d');
-
-const gameCanvas = document.createElement('canvas');
+const gameCanvas = document.getElementById('game');
 gameCanvas.width  = GW;
 gameCanvas.height = GH;
 const ctx = gameCanvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
-let crtScale = 1;
+const phosphorCanvas = document.getElementById('phosphor-canvas');
+phosphorCanvas.width  = GW;
+phosphorCanvas.height = GH;
+const phosphorCtx = phosphorCanvas.getContext('2d');
+phosphorCtx.imageSmoothingEnabled = false;
+
+const crtContainer = document.getElementById('crt-container');
 function resizeCRT() {
-  crtCanvas.width  = window.innerWidth;
-  crtCanvas.height = window.innerHeight;
-  crtScale = Math.min(window.innerWidth / GW, window.innerHeight / GH);
-  crtCtx.imageSmoothingEnabled = false;
+  const aspect = GW / GH;
+  let cw = window.innerWidth  * 0.98;
+  let ch = window.innerHeight * 0.96;
+  if (cw / ch > aspect) cw = ch * aspect; else ch = cw / aspect;
+  cw = Math.floor(cw); ch = Math.floor(ch);
+  crtContainer.style.width  = cw + 'px';
+  crtContainer.style.height = ch + 'px';
+  gameCanvas.style.width    = cw + 'px';
+  gameCanvas.style.height   = ch + 'px';
 }
 window.addEventListener('resize', resizeCRT);
 resizeCRT();
@@ -197,58 +296,6 @@ function text(str, x, y, {
   ctx.fillStyle = color;
   ctx.fillText(str, x, y);
   ctx.restore();
-}
-
-// ─────────────────────────────────────────────────────────────
-// CRT POST-PROCESSING
-// ─────────────────────────────────────────────────────────────
-let _flickerVal   = 1;
-let _flickerTimer = 0;
-
-function applyCRT() {
-  const dw = GW * crtScale;
-  const dh = GH * crtScale;
-  const ox = (crtCanvas.width  - dw) / 2;
-  const oy = (crtCanvas.height - dh) / 2;
-
-  crtCtx.fillStyle = '#000';
-  crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
-
-  _flickerTimer--;
-  if (_flickerTimer <= 0) {
-    _flickerTimer = rng.int(50, 300);
-    _flickerVal   = 0.94 + rng.next() * 0.06;
-  }
-
-  crtCtx.save();
-  crtCtx.globalAlpha = _flickerVal;
-  crtCtx.drawImage(gameCanvas, ox, oy, dw, dh);
-  crtCtx.restore();
-
-  // Scanlines
-  crtCtx.save();
-  for (let y = oy; y < oy + dh; y += crtScale * 2) {
-    crtCtx.fillStyle = 'rgba(0,0,0,0.28)';
-    crtCtx.fillRect(ox, y, dw, crtScale * 0.9);
-  }
-  crtCtx.restore();
-
-  // Vignette
-  const vg = crtCtx.createRadialGradient(
-    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.25,
-    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.72,
-  );
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,8,0,0.72)');
-  crtCtx.fillStyle = vg;
-  crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
-
-  // Chromatic aberration
-  crtCtx.save();
-  crtCtx.globalCompositeOperation = 'screen';
-  crtCtx.globalAlpha = 0.05;
-  crtCtx.drawImage(gameCanvas, ox + crtScale * 0.6, oy, dw, dh);
-  crtCtx.restore();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1982,7 +2029,9 @@ function render() {
     drawShop();
   }
 
-  applyCRT();
+  // Push game frame to phosphor bloom layer
+  phosphorCtx.clearRect(0, 0, GW, GH);
+  phosphorCtx.drawImage(gameCanvas, 0, 0);
 }
 
 // ─────────────────────────────────────────────────────────────
