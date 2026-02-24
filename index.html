@@ -17,7 +17,7 @@
   /* Ambient room glow */
   #wrap::before {
     content: ''; position: fixed; inset: 0; pointer-events: none;
-    background: radial-gradient(ellipse at 50% 45%, rgba(57,255,20,0.07) 0%, transparent 60%);
+    background: radial-gradient(ellipse at 50% 45%, rgba(0,180,255,0.08) 0%, transparent 60%);
     z-index: 0;
   }
 
@@ -27,9 +27,9 @@
     border-radius: 16px;
     overflow: hidden;
     box-shadow:
-      0 0 60px  rgba(57,255,20,0.18),
-      0 0 120px rgba(57,255,20,0.06),
-      inset 0 0 1px rgba(255,255,255,0.08);
+      0 0 60px  rgba(0,200,255,0.20),
+      0 0 120px rgba(120,0,255,0.08),
+      inset 0 0 1px rgba(200,220,255,0.12);
     animation: crt-on 0.8s ease-out;
   }
   /* Glass reflection */
@@ -82,7 +82,7 @@
   /* Flicker */
   #flicker {
     position: absolute; inset: 0; pointer-events: none; z-index: 13;
-    opacity: 0; background: rgba(57,255,20,0.03);
+    opacity: 0; background: rgba(160,200,255,0.04);
     animation: crt-flicker 0.15s infinite;
   }
   @keyframes crt-flicker {
@@ -137,52 +137,52 @@ const ATK_RANGE     = 24;
 
 const POWERUPS = {
   double_jump: { label: 'DOUBLE JUMP',  desc: 'Jump again in mid-air',          color: '#00e5ff' },
-  blade_storm: { label: 'BLADESTORM',   desc: 'Attacks fire a projectile',       color: '#39ff14' },
-  iron_skin:   { label: 'IRON SKIN',    desc: '+1 max HP  ·  restore 1 HP',      color: '#aaaaaa' },
-  speed_demon: { label: 'SPEED DEMON',  desc: '1.32× movement speed',            color: '#ffff00' },
-  phase_dash:  { label: 'PHASE DASH',   desc: 'Faster dash, immune to bullets',  color: '#ff00ff' },
-  lifesteal:   { label: 'LIFESTEAL',    desc: 'Recover HP on kills',             color: '#ff4444' },
+  blade_storm: { label: 'BLADESTORM',   desc: 'Attacks fire a projectile',       color: '#ff44ff' },
+  iron_skin:   { label: 'IRON SKIN',    desc: '+1 max HP  ·  restore 1 HP',      color: '#aaaaee' },
+  speed_demon: { label: 'SPEED DEMON',  desc: '1.32× movement speed',            color: '#ffee00' },
+  phase_dash:  { label: 'PHASE DASH',   desc: 'Faster dash, immune to bullets',  color: '#cc44ff' },
+  lifesteal:   { label: 'LIFESTEAL',    desc: 'Recover HP on kills',             color: '#ff4466' },
 };
 const POWERUP_KEYS = Object.keys(POWERUPS);
 
 // Shop items (meta-progression)
 const SHOP_ITEMS = [
-  { key: 'armorLevel',   label: 'REINFORCED SUIT',  desc: '+1 starting HP  (max +3)',   cost: 10, maxOwn: 3, color: '#ff3355' },
-  { key: 'speedLevel',   label: 'OVERCLOCKED LEGS', desc: 'Start every run with SPEED DEMON', cost: 15, maxOwn: 1, color: '#ffff00' },
-  { key: 'arsenalLevel', label: 'WEAPONS CACHE',    desc: 'Start every run with BLADESTORM', cost: 15, maxOwn: 1, color: '#39ff14' },
+  { key: 'armorLevel',   label: 'REINFORCED SUIT',  desc: '+1 starting HP  (max +3)',   cost: 10, maxOwn: 3, color: '#ff4466' },
+  { key: 'speedLevel',   label: 'OVERCLOCKED LEGS', desc: 'Start every run with SPEED DEMON', cost: 15, maxOwn: 1, color: '#ffee00' },
+  { key: 'arsenalLevel', label: 'WEAPONS CACHE',    desc: 'Start every run with BLADESTORM', cost: 15, maxOwn: 1, color: '#ff44ff' },
 ];
 
-// Phosphor-green palette
+// 80s CRT arcade palette
 const C = {
-  bg:        '#020c02',
-  dim:       '#071407',
-  tile:      '#0c380c',
-  tileHi:    '#1a5c1a',
-  tileLo:    '#051205',
-  tileInner: '#091c09',
-  platform:  '#22762a',
-  platEdge:  '#3aaf46',
-  spike:     '#cc4400',
-  spikeGlow: '#ff6600',
-  player:    '#39ff14',
-  playerDim: '#19780a',
-  playerBody:'#0f4a08',
-  visor:     '#00e5ff',
-  enemy:     '#ff4500',
-  enemyDim:  '#7a2000',
-  boss:      '#ff0066',
-  bossDim:   '#7a0033',
-  coin:      '#ffd700',
-  coinGlow:  '#ffaa00',
-  powerup:   '#00ffff',
-  exit:      '#00ffcc',
+  bg:        '#08081c',   // deep navy-black
+  dim:       '#10103a',   // faint grid lines
+  tile:      '#1a2a6a',   // dark-blue bricks
+  tileHi:    '#3a5acc',   // bright blue highlight
+  tileLo:    '#0d1240',   // shadow edge
+  tileInner: '#13194e',   // inner recess
+  platform:  '#006e6e',   // teal platform
+  platEdge:  '#00dddd',   // bright teal edge
+  spike:     '#ff1a00',   // hot red
+  spikeGlow: '#ff5500',   // orange-red glow
+  player:    '#00e5ff',   // cyan player
+  playerDim: '#004466',   // dark cyan
+  playerBody:'#001e33',   // very dark body
+  visor:     '#ff6ec7',   // hot-pink visor
+  enemy:     '#ff6600',   // vivid orange
+  enemyDim:  '#7a2e00',   // dark orange
+  boss:      '#ffcc00',   // gold
+  bossDim:   '#664400',   // dark gold
+  coin:      '#ffd700',   // gold coin
+  coinGlow:  '#ffbb00',
+  powerup:   '#ff44ff',   // magenta
+  exit:      '#00ffcc',   // teal exit
   exitGlow:  '#00ffcc',
-  hurt:      '#ff2222',
-  text:      '#39ff14',
-  textDim:   '#1a5c1a',
-  textBright:'#ccffcc',
-  uiBg:      '#040d04',
-  uiBorder:  '#1a4a1a',
+  hurt:      '#ff2244',   // red hurt flash
+  text:      '#00e5ff',   // cyan UI text
+  textDim:   '#005577',   // dim cyan
+  textBright:'#ccffff',   // near-white cyan
+  uiBg:      '#040412',   // dark panel
+  uiBorder:  '#1a2860',   // blue border
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -815,17 +815,26 @@ function updatePlayer(p, level, projectiles) {
         { vxRange: 1.5, vyRange: 1, vyBias: 0, life: 14, size: 2 });
     }
 
-    // ── Attack ──
+    // ── Shoot (gun) ──
     if (just('KeyZ', 'KeyX', 'KeyJ') && p.atkCooldown <= 0) {
       p.atkTimer    = ATK_FRAMES;
-      p.atkCooldown = ATK_COOLDOWN;
+      p.atkCooldown = p.hasBladestorm ? Math.floor(ATK_COOLDOWN * 0.55) : ATK_COOLDOWN;
+
+      // Bullet spawns at barrel tip
+      const bx  = p.x + (p.dir > 0 ? p.w + 6 : -10);
+      const by  = p.y + 6;
+      const spd = 7.0;
+      projectiles.push(newProjectile(bx, by, p.dir * spd, 0, 'player', '#ffee44', 7, 2));
+
+      // Bladestorm: triple spread shot
       if (p.hasBladestorm) {
-        // Fire a projectile in dash direction
-        projectiles.push(newProjectile(
-          p.x + (p.dir > 0 ? p.w : -6), p.y + p.h / 2 - 2,
-          p.dir * 4, 0, 'player', C.player,
-        ));
+        projectiles.push(newProjectile(bx, by, p.dir * spd * 0.85, -spd * 0.42, 'player', '#ffee44', 6, 2));
+        projectiles.push(newProjectile(bx, by, p.dir * spd * 0.85,  spd * 0.42, 'player', '#ffee44', 6, 2));
       }
+
+      // Muzzle flash particles
+      spawnParticles(bx, by, '#ffee44', 4,
+        { vxRange: 1.0, vyRange: 1.0, vyBias: 0, life: 5, size: 2 });
     }
 
     // ── State label ──
@@ -875,8 +884,8 @@ function playerAtkHitbox(p) {
 // ─────────────────────────────────────────────────────────────
 // PROJECTILES
 // ─────────────────────────────────────────────────────────────
-function newProjectile(x, y, vx, vy, owner, color) {
-  return { x, y, vx, vy, w: 4, h: 4, owner, color, age: 0, dead: false };
+function newProjectile(x, y, vx, vy, owner, color, w = 4, h = 4) {
+  return { x, y, vx, vy, w, h, owner, color, age: 0, dead: false };
 }
 
 function updateProjectiles(projs, level) {
@@ -1388,7 +1397,7 @@ function drawExit(level, camX, camY, frame) {
   if (!level.exitOpen) {
     // Locked — dark and dim
     ctx.save();
-    ctx.strokeStyle = '#1a3a1a';
+    ctx.strokeStyle = '#1a2a60';
     ctx.lineWidth   = 1;
     ctx.beginPath(); ctx.arc(sx + 8, sy + 8, 8, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
@@ -1489,15 +1498,37 @@ function drawPlayer(p, camX, camY) {
     ctx.fillRect(PW - 4, PH - 4, 3, 3);
   }
 
-  // Attack slash
-  if (p.state === 'attack') {
-    const progress = 1 - p.atkTimer / ATK_FRAMES;
-    const slashLen = ATK_RANGE * progress;
-    ctx.fillStyle   = C.player;
-    ctx.shadowColor = C.player;
-    ctx.shadowBlur  = 12;
-    ctx.fillRect(PW - 2, PH / 2 - 2, slashLen, 2);
-    ctx.fillRect(PW - 2, PH / 2,     slashLen * 0.7, 2);
+  // ── Gun (always visible) ──
+  const firing  = p.state === 'attack';
+  const recoil  = (firing && p.atkTimer > ATK_FRAMES - 3) ? 2 : 0;
+  const gripX   = PW - 3 - recoil;
+  const barrelX = PW + 1 - recoil;
+
+  // Grip
+  ctx.shadowColor = '#446688';
+  ctx.shadowBlur  = 3;
+  ctx.fillStyle   = '#1e2d44';
+  ctx.fillRect(gripX, 5, 5, 5);
+  // Barrel
+  ctx.fillStyle = '#3a5878';
+  ctx.fillRect(barrelX, 6, 8, 2);
+  // Barrel highlight stripe
+  ctx.fillStyle = '#6a9ab8';
+  ctx.fillRect(barrelX, 6, 8, 1);
+  // Barrel tip ring
+  ctx.fillStyle = '#88bbdd';
+  ctx.fillRect(barrelX + 7, 5, 2, 4);
+
+  // Muzzle flash — only on the actual fire frame
+  if (firing && p.atkTimer === ATK_FRAMES) {
+    ctx.save();
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur  = 14;
+    ctx.fillStyle   = '#ffee44';
+    ctx.fillRect(barrelX + 8, 4, 5, 6);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(barrelX + 9, 5, 3, 4);
+    ctx.restore();
   }
 
   ctx.restore();
@@ -1511,7 +1542,7 @@ function drawHUD(p, floorNum, isBoss, dashCooldown) {
   text('HP', 6, 7, { size: 5, color: C.textDim });
   for (let i = 0; i < p.maxHp; i++) {
     const filled = i < p.hp;
-    ctx.fillStyle   = filled ? '#ff3355' : '#1a0010';
+    ctx.fillStyle   = filled ? '#ff3355' : '#0a0020';
     ctx.shadowColor = filled ? '#ff0033' : 'transparent';
     ctx.shadowBlur  = filled ? 5 : 0;
     ctx.fillRect(22 + i * 11, 7, 9, 8);
@@ -1533,8 +1564,8 @@ function drawHUD(p, floorNum, isBoss, dashCooldown) {
 
   // Powerup icons (top-right)
   if (p.powerups.length > 0) {
-    const PCOLS = { double_jump: C.visor, blade_storm: C.player,
-                    iron_skin: '#888', speed_demon: '#ff0', phase_dash: '#f0f', lifesteal: '#f33' };
+    const PCOLS = { double_jump: C.visor, blade_storm: C.powerup,
+                    iron_skin: '#aaaaee', speed_demon: '#ffee00', phase_dash: '#cc44ff', lifesteal: '#ff4466' };
     text('PWR', GW - 6, 7, { size: 4, align: 'right', color: C.textDim });
     p.powerups.forEach((k, i) => {
       const col = PCOLS[k] || '#fff';
@@ -1568,7 +1599,7 @@ function drawHUD(p, floorNum, isBoss, dashCooldown) {
       ctx.shadowBlur  = 6;
       text('THE  WARDEN', GW / 2, by - 9, { size: 4, align: 'center', color: hpColor });
       ctx.restore();
-      fillRect(bx - 1, by - 1, bw + 2, 7, '#1a0010');
+      fillRect(bx - 1, by - 1, bw + 2, 7, '#0a0020');
       fillRect(bx, by, bw, 5, '#300015');
       fillRect(bx, by, Math.ceil(bw * b.hp / b.maxHp), 5, hpColor);
       if (p2) text('PHASE 2', GW / 2, by + 7, { size: 3, align: 'center', color: '#ff88cc' });
@@ -1866,22 +1897,6 @@ function update() {
     for (const e of level.enemies) {
       if (e.type === 'boss') updateBoss(e, level, player, projectiles);
       else                   updateEnemy(e, level, player, projectiles);
-    }
-
-    // ── Player melee attack vs enemies (fires on first frame) ──
-    if (player.atkTimer === ATK_FRAMES) {
-      const hb = playerAtkHitbox(player);
-      if (hb) {
-        for (const e of level.enemies) {
-          if (!e.dead && overlaps(hb, e)) {
-            const killed = hurtEnemy(e, 1, player);
-            if (killed) {
-              // Drop a coin at enemy location
-              level.coins.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, taken: false });
-            }
-          }
-        }
-      }
     }
 
     // ── Player projectiles vs enemies ──────────────────────
