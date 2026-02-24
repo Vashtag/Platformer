@@ -26,38 +26,55 @@
 // ─────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────
-const GW = 320, GH = 180;   // internal game resolution
-const TS = 16;               // tile size in pixels
+const GW = 320, GH = 180;     // internal game resolution
+const TS = 16;                 // tile size in pixels
+const CHUNK_W = 20;            // tiles per chunk (wide)
+const CHUNK_H = 12;            // tiles per chunk (tall)
 
-// Phosphor-green palette (CRT monitor feel)
+const GRAVITY  = 0.34;
+const TERM_VEL = 8.5;
+
+const PW = 10, PH = 14;        // player pixel size
+const P_SPEED       = 1.7;
+const P_JUMP        = -5.6;
+const P_DASH_SPEED  = 6.5;
+const DASH_FRAMES   = 10;
+const DASH_COOLDOWN = 50;
+const ATK_FRAMES    = 14;
+const ATK_COOLDOWN  = 22;
+const ATK_RANGE     = 24;
+
+// Phosphor-green palette
 const C = {
   bg:        '#020c02',
   dim:       '#071407',
-  tile:      '#0d3b0d',
+  tile:      '#0c380c',
   tileHi:    '#1a5c1a',
-  tileShadow:'#051005',
-  platform:  '#1f6b1f',
-  platEdge:  '#2d962d',
+  tileLo:    '#051205',
+  tileInner: '#091c09',
+  platform:  '#22762a',
+  platEdge:  '#3aaf46',
+  spike:     '#cc4400',
+  spikeGlow: '#ff6600',
   player:    '#39ff14',
-  playerDim: '#1a7a00',
+  playerDim: '#19780a',
+  playerBody:'#0f4a08',
+  visor:     '#00e5ff',
   enemy:     '#ff4500',
   enemyDim:  '#7a2000',
   boss:      '#ff0066',
   bossDim:   '#7a0033',
-  bullet:    '#ffe066',
   coin:      '#ffd700',
   coinGlow:  '#ffaa00',
   powerup:   '#00ffff',
-  pwrGlow:   '#00aaaa',
-  hurt:      '#ff2222',
   exit:      '#00ffcc',
   exitGlow:  '#00ffcc',
+  hurt:      '#ff2222',
   text:      '#39ff14',
   textDim:   '#1a5c1a',
   textBright:'#ccffcc',
   uiBg:      '#040d04',
   uiBorder:  '#1a4a1a',
-  spike:     '#cc4400',
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -94,28 +111,20 @@ function overlaps(a, b) {
 // ─────────────────────────────────────────────────────────────
 // INPUT
 // ─────────────────────────────────────────────────────────────
-const keys     = {};
-const pressed  = {};   // fires once on keydown
-const released = {};
+const keys    = {};
+const pressed = {};
 
 window.addEventListener('keydown', e => {
   if (!keys[e.code]) pressed[e.code] = true;
   keys[e.code] = true;
-  // Prevent arrow keys and space from scrolling
   if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))
     e.preventDefault();
 });
-window.addEventListener('keyup', e => {
-  keys[e.code] = false;
-  released[e.code] = true;
-});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 function down(...codes) { return codes.some(c => keys[c]); }
 function just(...codes) { return codes.some(c => pressed[c]); }
-function clearInput() {
-  for (const k in pressed)  delete pressed[k];
-  for (const k in released) delete released[k];
-}
+function clearInput()   { for (const k in pressed) delete pressed[k]; }
 
 // ─────────────────────────────────────────────────────────────
 // CANVAS SETUP
@@ -123,7 +132,6 @@ function clearInput() {
 const crtCanvas = document.getElementById('crt');
 const crtCtx    = crtCanvas.getContext('2d');
 
-// Offscreen game canvas (low-res, all gameplay renders here)
 const gameCanvas = document.createElement('canvas');
 gameCanvas.width  = GW;
 gameCanvas.height = GH;
@@ -131,7 +139,6 @@ const ctx = gameCanvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
 
 let crtScale = 1;
-
 function resizeCRT() {
   crtCanvas.width  = window.innerWidth;
   crtCanvas.height = window.innerHeight;
@@ -142,7 +149,7 @@ window.addEventListener('resize', resizeCRT);
 resizeCRT();
 
 // ─────────────────────────────────────────────────────────────
-// DRAW HELPERS  (all draw to offscreen `ctx` at GW×GH)
+// DRAW HELPERS  (render to low-res gameCanvas)
 // ─────────────────────────────────────────────────────────────
 function fillRect(x, y, w, h, color) {
   ctx.fillStyle = color;
@@ -166,9 +173,9 @@ function text(str, x, y, {
   blur  = 4,
 } = {}) {
   ctx.save();
-  ctx.font          = `${size}px monospace`;
-  ctx.textAlign     = align;
-  ctx.textBaseline  = 'top';
+  ctx.font         = `${size}px monospace`;
+  ctx.textAlign    = align;
+  ctx.textBaseline = 'top';
   if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = blur; }
   ctx.fillStyle = color;
   ctx.fillText(str, x, y);
@@ -187,18 +194,15 @@ function applyCRT() {
   const ox = (crtCanvas.width  - dw) / 2;
   const oy = (crtCanvas.height - dh) / 2;
 
-  // Black bars
   crtCtx.fillStyle = '#000';
   crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
 
-  // Subtle screen flicker
   _flickerTimer--;
   if (_flickerTimer <= 0) {
     _flickerTimer = rng.int(50, 300);
     _flickerVal   = 0.94 + rng.next() * 0.06;
   }
 
-  // Upscale game canvas
   crtCtx.save();
   crtCtx.globalAlpha = _flickerVal;
   crtCtx.drawImage(gameCanvas, ox, oy, dw, dh);
@@ -213,91 +217,21 @@ function applyCRT() {
   crtCtx.restore();
 
   // Vignette
-  const grad = crtCtx.createRadialGradient(
+  const vg = crtCtx.createRadialGradient(
     crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.25,
     crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.72,
   );
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,8,0,0.72)');
-  crtCtx.fillStyle = grad;
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,8,0,0.72)');
+  crtCtx.fillStyle = vg;
   crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
 
-  // Chromatic aberration (very subtle red ghost shifted right)
+  // Chromatic aberration
   crtCtx.save();
   crtCtx.globalCompositeOperation = 'screen';
   crtCtx.globalAlpha = 0.05;
   crtCtx.drawImage(gameCanvas, ox + crtScale * 0.6, oy, dw, dh);
   crtCtx.restore();
-
-  // Phosphor edge bloom (green tint at screen perimeter)
-  const edgeGrad = crtCtx.createRadialGradient(
-    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.42,
-    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.55,
-  );
-  edgeGrad.addColorStop(0, 'rgba(0,0,0,0)');
-  edgeGrad.addColorStop(1, 'rgba(0,30,0,0.12)');
-  crtCtx.fillStyle = edgeGrad;
-  crtCtx.fillRect(ox, oy, dw, dh);
-}
-
-// ─────────────────────────────────────────────────────────────
-// TITLE SCREEN
-// ─────────────────────────────────────────────────────────────
-function drawTitle(f) {
-  // Background: animated grid
-  fillRect(0, 0, GW, GH, C.bg);
-
-  ctx.save();
-  ctx.strokeStyle = C.dim;
-  ctx.lineWidth   = 0.5;
-  const gOff = (f * 0.25) % 16;
-  for (let x = (-16 + gOff); x < GW + 16; x += 16) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
-  }
-  for (let y = 0; y < GH; y += 16) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
-  }
-  ctx.restore();
-
-  // Moving horizontal scan artifact
-  const scanY = ((f * 0.4) % GH);
-  ctx.save();
-  ctx.fillStyle = 'rgba(57,255,20,0.04)';
-  ctx.fillRect(0, scanY, GW, 3);
-  ctx.restore();
-
-  // Title glow pulse
-  const pulse = 0.75 + 0.25 * Math.sin(f * 0.05);
-  ctx.save();
-  ctx.shadowColor = C.player;
-  ctx.shadowBlur  = 20 * pulse;
-  text('VAULT', GW / 2, 32, { size: 26, align: 'center', color: C.player });
-  text('RUN',   GW / 2, 60, { size: 26, align: 'center', color: C.player });
-  ctx.restore();
-
-  text('ROGUELITE PLATFORMER', GW / 2, 93, {
-    size: 5, align: 'center', color: C.textDim,
-  });
-
-  // Blink prompt
-  if (Math.floor(f / 28) % 2 === 0) {
-    text('[ PRESS ENTER TO START ]', GW / 2, 112, {
-      size: 6, align: 'center', color: C.text, glow: C.player, blur: 6,
-    });
-  }
-
-  text('ARROW KEYS / WASD  ·  Z=ATTACK  ·  SHIFT=DASH', GW / 2, 130, {
-    size: 4, align: 'center', color: C.textDim,
-  });
-
-  // Meta coins
-  const meta = loadMeta();
-  text(`COINS: ${meta.coins}`, 8, 8, { size: 5, color: C.coin, glow: C.coinGlow, blur: 4 });
-  if (meta.coins >= 15) {
-    text('[ S ] SHOP', GW - 8, 8, { size: 5, align: 'right', color: C.textDim });
-  }
-
-  text('v0.1', GW / 2, GH - 10, { size: 4, align: 'center', color: C.dim });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -310,34 +244,982 @@ function loadMeta() {
   } catch (_) {}
   return { coins: 0, armorLevel: 0, speedLevel: 0, arsenalLevel: 0 };
 }
-function saveMeta(meta) {
-  try { localStorage.setItem('vaultrun_meta', JSON.stringify(meta)); } catch (_) {}
+function saveMeta(m) {
+  try { localStorage.setItem('vaultrun_meta', JSON.stringify(m)); } catch (_) {}
 }
 
 // ─────────────────────────────────────────────────────────────
-// GAME STATE MACHINE  (step 1: just title)
+// CHUNK TEMPLATES  (20 × 12 tiles each)
+// 0=empty 1=solid 2=one-way platform 3=spike
 // ─────────────────────────────────────────────────────────────
-let state = 'title';
-let frame = 0;
+function makeChunk(rows12) {
+  // rows12: exactly 12 strings of exactly 20 chars
+  // '.' empty  'X' solid  'P' platform  'S' spike
+  const map = { '.': 0, 'X': 1, 'P': 2, 'S': 3 };
+  const a   = new Uint8Array(CHUNK_W * CHUNK_H);
+  rows12.forEach((row, r) => {
+    for (let c = 0; c < CHUNK_W; c++)
+      a[r * CHUNK_W + c] = map[row[c] ?? '.'] ?? 0;
+  });
+  return a;
+}
 
+const START_CHUNK = makeChunk([
+  '....................', // 0
+  '....................', // 1
+  '....................', // 2
+  '....................', // 3
+  '....................', // 4
+  '....................', // 5
+  '....................', // 6
+  '....................', // 7
+  '....................', // 8
+  '....................', // 9
+  '....................', // 10
+  'XXXXXXXXXXXXXXXXXXXX', // 11
+]);
+
+const EXIT_CHUNK = makeChunk([
+  '....................', // 0
+  '....................', // 1
+  '....................', // 2
+  '....................', // 3
+  '....................', // 4
+  '....................', // 5
+  '....................', // 6
+  '....................', // 7
+  '....................', // 8
+  '....................', // 9
+  '....................', // 10
+  'XXXXXXXXXXXXXXXXXXXX', // 11
+]);
+
+const CHUNKS = [
+  // 0: Flat — just ground, enemy patrol space
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 1: Two floating platforms at different heights
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    '.....PPPPPP.........',
+    '....................',
+    '.............PPP....',
+    '....................',
+    'PPP.................',
+    '....................',
+    '....................',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 2: Central raised platform (step up from left, step down right)
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '........XXXXXXX.....',
+    '......XXXXXXXXX.....',
+    '....XXXXXXXXX.......',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 3: Pit with platforms to cross
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '.....PPP............',
+    '....................',
+    '..........PPP.......',
+    'XXXXXXX.........XXXX',
+    'XXXXXXX.........XXXX',
+    'XXXXXXX.........XXXX',
+    'XXXXXXX.........XXXX',
+    'XXXXXXX.........XXXX',
+  ]),
+  // 4: Spike gauntlet — platforms over deadly floor
+  makeChunk([
+    '....................',
+    '....................',
+    '.....PPP....PPP.....',
+    '....................',
+    '....................',
+    '..PPP...........PPP.',
+    '....................',
+    '....................',
+    '....................',
+    '.SSS.......SSSS.....',
+    '.SSS.......SSSS.....',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 5: Ceiling room with hanging platforms
+  makeChunk([
+    'XXXXXXXXXXXXXXXXXXXX',
+    '....................',
+    '....................',
+    '......PPPP..........',
+    '....................',
+    '....................',
+    '.............PPPP...',
+    '..PPPP..............',
+    '....................',
+    '....................',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 6: Two tall pillars to jump over
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    '.......XXXX.........',
+    '.......XXXX...XXXXX.',
+    '.......XXXX...XXXXX.',
+    '.......XXXX...XXXXX.',
+    '.......XXXX...XXXXX.',
+    '....................',
+    '....................',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 7: Staircase platforms rising right
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    '................PP..',
+    '............PP......',
+    '........PP..........',
+    '....PP..............',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 8: Lower pit with spike bottom and platforms
+  makeChunk([
+    '....................',
+    '....................',
+    '....................',
+    'PPP.........PPP.....',
+    '....................',
+    '.........PPP........',
+    '....................',
+    'XXXXXXX.....XXXXXXX.',
+    'XXXXXXX.....XXXXXXX.',
+    'XXXXXXX.....XXXXXXX.',
+    'XXXXXXX.SSSSXXXXXXX.',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+  // 9: Mixed — one solid ledge, spikes on ground
+  makeChunk([
+    '....................',
+    '....................',
+    '.......XXXX.........',
+    '.......XXXX.........',
+    '.......XXXX.........',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    'SSSSS...........SSSS',
+    '....................',
+    'XXXXXXXXXXXXXXXXXXXX',
+  ]),
+];
+
+// ─────────────────────────────────────────────────────────────
+// LEVEL GENERATOR
+// ─────────────────────────────────────────────────────────────
+class Level {
+  constructor(floor, isBoss) {
+    this.floor    = floor;
+    this.isBoss   = isBoss;
+    this.tileW    = 0;
+    this.tileH    = CHUNK_H;
+    this._tiles   = null;
+    this.coins    = [];
+    this.enemies  = [];   // filled in step 4
+    this.exitX    = 0;    // pixel coords of portal
+    this.exitY    = 0;
+    this.exitOpen = false;
+    this._generate();
+  }
+
+  _generate() {
+    const numMid = this.isBoss ? 2 : clamp(4 + this.floor, 5, 10);
+    const pool   = rng.shuffle([...Array(CHUNKS.length).keys()]);
+    const segs   = [START_CHUNK];
+    for (let i = 0; i < numMid; i++) segs.push(CHUNKS[pool[i % pool.length]]);
+    segs.push(EXIT_CHUNK);
+
+    this.tileW  = segs.length * CHUNK_W;
+    this._tiles = new Uint8Array(this.tileW * this.tileH);
+
+    segs.forEach((chunk, si) => {
+      for (let r = 0; r < CHUNK_H; r++)
+        for (let c = 0; c < CHUNK_W; c++)
+          this._tiles[r * this.tileW + si * CHUNK_W + c] = chunk[r * CHUNK_W + c];
+    });
+
+    // Scatter coins in mid-chunks (avoid first and last)
+    for (let si = 1; si < segs.length - 1; si++) {
+      const n = rng.int(2, 5);
+      for (let k = 0; k < n; k++) {
+        const tc = si * CHUNK_W + rng.int(2, CHUNK_W - 3);
+        for (let tr = CHUNK_H - 2; tr >= 1; tr--) {
+          const here  = this.getTile(tc, tr);
+          const below = this.getTile(tc, tr + 1);
+          if (here === 0 && (below === 1 || below === 2)) {
+            this.coins.push({ x: tc * TS + 4, y: tr * TS + 2, taken: false });
+            break;
+          }
+        }
+      }
+    }
+
+    // Exit portal: inside exit chunk, 4 tiles from its left edge
+    this.exitX = (segs.length - 1) * CHUNK_W * TS + TS * 4;
+    this.exitY = (CHUNK_H - 2) * TS;
+    this.exitOpen = false;
+  }
+
+  getTile(col, row) {
+    if (col < 0 || col >= this.tileW || row < 0 || row >= this.tileH) return 0;
+    return this._tiles[row * this.tileW + col];
+  }
+  isSolid(c, r)    { return this.getTile(c, r) === 1; }
+  isPlatform(c, r) { return this.getTile(c, r) === 2; }
+  isSpike(c, r)    { return this.getTile(c, r) === 3; }
+  get pxW() { return this.tileW * TS; }
+  get pxH() { return this.tileH * TS; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PHYSICS
+// ─────────────────────────────────────────────────────────────
+function moveAndCollide(ent, level, solid = true) {
+  // ── X ──────────────────────────────────────
+  ent.x += ent.vx;
+
+  if (solid) {
+    const tT = Math.floor(ent.y / TS);
+    const tB = Math.floor((ent.y + ent.h - 1) / TS);
+    if (ent.vx > 0) {
+      const tc = Math.floor((ent.x + ent.w - 1) / TS);
+      for (let r = tT; r <= tB; r++) {
+        if (level.isSolid(tc, r)) { ent.x = tc * TS - ent.w; ent.vx = 0; break; }
+      }
+    } else if (ent.vx < 0) {
+      const tc = Math.floor(ent.x / TS);
+      for (let r = tT; r <= tB; r++) {
+        if (level.isSolid(tc, r)) { ent.x = (tc + 1) * TS; ent.vx = 0; break; }
+      }
+    }
+    // Level bounds
+    ent.x = clamp(ent.x, 0, level.pxW - ent.w);
+  }
+
+  // ── Y ──────────────────────────────────────
+  ent.vy       = Math.min(ent.vy + GRAVITY, TERM_VEL);
+  ent.y       += ent.vy;
+  ent.onGround = false;
+
+  if (solid) {
+    const tL = Math.floor(ent.x / TS);
+    const tR = Math.floor((ent.x + ent.w - 1) / TS);
+    if (ent.vy >= 0) {
+      const tr = Math.floor((ent.y + ent.h - 1) / TS);
+      for (let c = tL; c <= tR; c++) {
+        if (level.isSolid(c, tr)) {
+          ent.y = tr * TS - ent.h;
+          ent.vy = 0; ent.onGround = true; break;
+        }
+        // One-way: only land if coming from above
+        if (level.isPlatform(c, tr) && (ent.y - ent.vy + ent.h - 1) <= tr * TS) {
+          ent.y = tr * TS - ent.h;
+          ent.vy = 0; ent.onGround = true; break;
+        }
+      }
+    } else {
+      const tr = Math.floor(ent.y / TS);
+      for (let c = tL; c <= tR; c++) {
+        if (level.isSolid(c, tr)) { ent.y = (tr + 1) * TS; ent.vy = 0; break; }
+      }
+    }
+    // Pit kill zone check is done outside (in game update)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PARTICLE SYSTEM
+// ─────────────────────────────────────────────────────────────
+let particles = [];
+
+function spawnParticles(x, y, color, n, opts = {}) {
+  const { vxRange = 2.5, vyRange = 2.5, vyBias = -1, life = 18, size = 2 } = opts;
+  for (let i = 0; i < n; i++) {
+    particles.push({
+      x, y,
+      vx: (rng.next() - 0.5) * vxRange * 2,
+      vy: vyBias + (rng.next() - 0.5) * vyRange * 2,
+      color,
+      life, maxLife: life,
+      size,
+    });
+  }
+}
+
+function updateParticles() {
+  particles = particles.filter(p => {
+    p.x  += p.vx;
+    p.y  += p.vy;
+    p.vy += 0.12;
+    p.life--;
+    return p.life > 0;
+  });
+}
+
+function drawParticles(camX, camY) {
+  for (const p of particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur  = 3;
+    ctx.fillStyle   = p.color;
+    ctx.fillRect(p.x - camX - p.size / 2, p.y - camY - p.size / 2, p.size, p.size);
+    ctx.restore();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// PLAYER
+// ─────────────────────────────────────────────────────────────
+function newPlayer(x, y, meta) {
+  const hp = 4 + (meta.armorLevel | 0);
+  return {
+    x, y, vx: 0, vy: 0,
+    w: PW, h: PH,
+    hp, maxHp: hp,
+    coins: 0,
+    dir: 1,          // 1=right, -1=left
+    onGround: false,
+    jumpExtra: 0,    // remaining mid-air jumps
+    dashTimer:    0,
+    dashCooldown: 0,
+    atkTimer:     0,
+    atkCooldown:  0,
+    hurtTimer:    0,
+    hurtCooldown: 0,
+    frame:   0,
+    state:  'idle',
+    powerups: [],
+    hasDoubleJump: false,
+    hasBladestorm: false,
+    hasSpeedDemon:  (meta.speedLevel | 0) > 0,
+    hasPhaseDash:  false,
+    hasLifesteal:  false,
+    dead: false,
+  };
+}
+
+function updatePlayer(p, level, projectiles) {
+  if (p.dead) return;
+  p.frame++;
+
+  const isDashing = p.dashTimer > 0;
+
+  // ── Timers ──
+  if (p.dashTimer    > 0) p.dashTimer--;
+  if (p.dashCooldown > 0) p.dashCooldown--;
+  if (p.atkTimer     > 0) p.atkTimer--;
+  if (p.atkCooldown  > 0) p.atkCooldown--;
+  if (p.hurtTimer    > 0) p.hurtTimer--;
+  if (p.hurtCooldown > 0) p.hurtCooldown--;
+
+  if (isDashing && !p.hasPhaseDash) {
+    // Locked forward during dash (no steering)
+    p.state = 'dash';
+  } else {
+    const spd = P_SPEED * (p.hasSpeedDemon ? 1.32 : 1);
+
+    // ── Horizontal ──
+    if (down('ArrowLeft',  'KeyA')) { p.vx = -spd; p.dir = -1; }
+    else if (down('ArrowRight', 'KeyD')) { p.vx =  spd; p.dir =  1; }
+    else p.vx *= 0.72;
+
+    // ── Jump ──
+    if (just('ArrowUp', 'KeyW', 'Space')) {
+      if (p.onGround) {
+        p.vy = P_JUMP;
+        spawnParticles(p.x + p.w / 2, p.y + p.h, C.player, 5,
+          { vxRange: 1.5, vyRange: 0.8, vyBias: -0.2, life: 12, size: 1.5 });
+      } else if (p.hasDoubleJump && p.jumpExtra > 0) {
+        p.vy = P_JUMP * 0.88;
+        p.jumpExtra--;
+        spawnParticles(p.x + p.w / 2, p.y + p.h / 2, C.visor, 7,
+          { vxRange: 2, vyRange: 1.5, vyBias: 0, life: 14, size: 1.5 });
+      }
+    }
+    // Variable jump height cut
+    if (!down('ArrowUp', 'KeyW', 'Space') && p.vy < -1.5) p.vy += 0.4;
+
+    // ── Dash ──
+    if (just('ShiftLeft', 'ShiftRight') && p.dashCooldown <= 0) {
+      p.dashTimer    = DASH_FRAMES;
+      p.dashCooldown = p.hasPhaseDash ? Math.floor(DASH_COOLDOWN * 0.55) : DASH_COOLDOWN;
+      p.vx = p.dir * P_DASH_SPEED;
+      p.vy = -0.3;
+      spawnParticles(p.x + p.w / 2, p.y + p.h / 2, C.visor, 9,
+        { vxRange: 1.5, vyRange: 1, vyBias: 0, life: 14, size: 2 });
+    }
+
+    // ── Attack ──
+    if (just('KeyZ', 'KeyX', 'KeyJ') && p.atkCooldown <= 0) {
+      p.atkTimer    = ATK_FRAMES;
+      p.atkCooldown = ATK_COOLDOWN;
+      if (p.hasBladestorm) {
+        // Fire a projectile in dash direction
+        projectiles.push(newProjectile(
+          p.x + (p.dir > 0 ? p.w : -6), p.y + p.h / 2 - 2,
+          p.dir * 4, 0, 'player', C.player,
+        ));
+      }
+    }
+
+    // ── State label ──
+    if      (p.atkTimer > 0)       p.state = 'attack';
+    else if (!p.onGround && p.vy < 0) p.state = 'jump';
+    else if (!p.onGround && p.vy > 0) p.state = 'fall';
+    else if (Math.abs(p.vx) > 0.4) p.state = 'run';
+    else                           p.state = 'idle';
+  }
+
+  // Phase-dash: skip tile collision during dash
+  const skipTiles = isDashing && p.hasPhaseDash;
+  moveAndCollide(p, level, !skipTiles);
+
+  if (p.onGround) p.jumpExtra = 1;
+
+  // ── Spike damage ──
+  const tL = Math.floor(p.x / TS);
+  const tR = Math.floor((p.x + p.w - 1) / TS);
+  const tB = Math.floor((p.y + p.h - 1) / TS);
+  if (p.hurtCooldown <= 0) {
+    for (let c = tL; c <= tR; c++) {
+      if (level.isSpike(c, tB)) { hurtPlayer(p, 1); break; }
+    }
+  }
+
+  // ── Pit kill ──
+  if (p.y > level.pxH + 32) { p.hp = 0; p.dead = true; }
+}
+
+function hurtPlayer(p, dmg) {
+  if (p.hurtCooldown > 0 || p.dead) return;
+  p.hp          -= dmg;
+  p.hurtTimer    = 22;
+  p.hurtCooldown = 60;
+  spawnParticles(p.x + p.w / 2, p.y + p.h / 2, C.hurt, 8,
+    { vxRange: 3, vyRange: 3, vyBias: -1.5, life: 20, size: 2 });
+  if (p.hp <= 0) { p.hp = 0; p.dead = true; }
+}
+
+function playerAtkHitbox(p) {
+  if (p.atkTimer <= 0) return null;
+  const ax = p.dir > 0 ? p.x + p.w - 2 : p.x - ATK_RANGE + 2;
+  return { x: ax, y: p.y - 2, w: ATK_RANGE, h: p.h + 4 };
+}
+
+// ─────────────────────────────────────────────────────────────
+// PROJECTILES
+// ─────────────────────────────────────────────────────────────
+function newProjectile(x, y, vx, vy, owner, color) {
+  return { x, y, vx, vy, w: 4, h: 4, owner, color, age: 0, dead: false };
+}
+
+function updateProjectiles(projs, level) {
+  for (const p of projs) {
+    if (p.dead) continue;
+    p.age++;
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.age > 200) { p.dead = true; continue; }
+    const tc = Math.floor((p.x + 2) / TS);
+    const tr = Math.floor((p.y + 2) / TS);
+    if (level.isSolid(tc, tr)) p.dead = true;
+    if (p.x < 0 || p.x > level.pxW || p.y < 0 || p.y > level.pxH) p.dead = true;
+  }
+  return projs.filter(p => !p.dead);
+}
+
+// ─────────────────────────────────────────────────────────────
+// CAMERA
+// ─────────────────────────────────────────────────────────────
+function newCamera() { return { x: 0, y: 0 }; }
+
+function updateCamera(cam, target, level) {
+  const tx = clamp(target.x + target.w / 2 - GW / 2, 0, level.pxW - GW);
+  const ty = clamp(target.y + target.h / 2 - GH / 2, 0, level.pxH - GH);
+  cam.x = lerp(cam.x, tx, 0.1);
+  cam.y = lerp(cam.y, ty, 0.1);
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — LEVEL
+// ─────────────────────────────────────────────────────────────
+function drawBackground(camX, camY) {
+  // Fill
+  fillRect(0, 0, GW, GH, C.bg);
+
+  // Parallax grid (moves at 0.25x camera speed)
+  const gx = (camX * 0.25) % 16;
+  const gy = (camY * 0.25) % 16;
+  ctx.save();
+  ctx.strokeStyle = C.dim;
+  ctx.lineWidth   = 0.4;
+  for (let x = -gx; x <= GW + 16; x += 16) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
+  }
+  for (let y = -gy; y <= GH + 16; y += 16) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTile(sx, sy, type) {
+  if (type === 1) {  // solid
+    fillRect(sx, sy, TS, TS, C.tile);
+    fillRect(sx, sy, TS, 1, C.tileHi);       // top highlight
+    fillRect(sx, sy, 1, TS, C.tileHi);       // left highlight
+    fillRect(sx + TS - 1, sy, 1, TS, C.tileLo); // right shadow
+    fillRect(sx, sy + TS - 1, TS, 1, C.tileLo); // bottom shadow
+    fillRect(sx + 2, sy + 2, TS - 4, TS - 4, C.tileInner); // inner recess
+  } else if (type === 2) {  // one-way platform
+    fillRect(sx, sy, TS, 3, C.platform);
+    fillRect(sx + 1, sy, TS - 2, 1, C.platEdge);
+  } else if (type === 3) {  // spike
+    ctx.save();
+    ctx.fillStyle   = C.spike;
+    ctx.shadowColor = C.spikeGlow;
+    ctx.shadowBlur  = 5;
+    // Three triangular spikes across the tile
+    for (let i = 0; i < 3; i++) {
+      const bx = sx + 1 + i * 5;
+      ctx.beginPath();
+      ctx.moveTo(bx,     sy + TS);
+      ctx.lineTo(bx + 3, sy + 5);
+      ctx.lineTo(bx + 5, sy + TS);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawLevel(level, camX, camY) {
+  const c0 = Math.max(0, Math.floor(camX / TS) - 1);
+  const c1 = Math.min(level.tileW - 1, Math.ceil((camX + GW) / TS) + 1);
+  const r0 = Math.max(0, Math.floor(camY / TS) - 1);
+  const r1 = Math.min(level.tileH - 1, Math.ceil((camY + GH) / TS) + 1);
+
+  for (let r = r0; r <= r1; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const t = level.getTile(c, r);
+      if (t === 0) continue;
+      drawTile(c * TS - camX, r * TS - camY, t);
+    }
+  }
+}
+
+// Coin spark animation
+function drawCoins(level, camX, camY, frame) {
+  for (const coin of level.coins) {
+    if (coin.taken) continue;
+    const sx = coin.x - camX;
+    const sy = coin.y - camY;
+    if (sx < -8 || sx > GW + 8 || sy < -8 || sy > GH + 8) continue;
+    const pulse = 0.65 + 0.35 * Math.sin(frame * 0.1 + coin.x * 0.05);
+    const r     = 3.5 * pulse;
+    ctx.save();
+    ctx.shadowColor = C.coinGlow;
+    ctx.shadowBlur  = 7;
+    ctx.fillStyle   = C.coin;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Exit portal
+function drawExit(level, camX, camY, frame) {
+  const sx = level.exitX - camX - 8;
+  const sy = level.exitY - camY - 8;
+  if (sx < -24 || sx > GW + 24) return;
+  const pulse = 0.5 + 0.5 * Math.sin(frame * 0.08);
+
+  if (!level.exitOpen) {
+    // Locked — dark and dim
+    ctx.save();
+    ctx.strokeStyle = '#1a3a1a';
+    ctx.lineWidth   = 1;
+    ctx.beginPath(); ctx.arc(sx + 8, sy + 8, 8, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  ctx.save();
+  ctx.shadowColor = C.exitGlow;
+  ctx.shadowBlur  = 12 + pulse * 10;
+
+  ctx.strokeStyle = C.exit;
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath(); ctx.arc(sx + 8, sy + 8, 8 + pulse * 2.5, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.fillStyle   = `rgba(0,255,200,${0.12 + pulse * 0.08})`;
+  ctx.beginPath(); ctx.arc(sx + 8, sy + 8, 7, 0, Math.PI * 2); ctx.fill();
+
+  ctx.restore();
+  if (Math.floor(frame / 22) % 2 === 0) {
+    text('EXIT', sx, sy + 21, { size: 4, color: C.exit, glow: C.exitGlow, blur: 3 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — PLAYER SPRITE
+// ─────────────────────────────────────────────────────────────
+function drawPlayer(p, camX, camY) {
+  const sx = Math.round(p.x - camX);
+  const sy = Math.round(p.y - camY);
+
+  // Dash trail
+  if (p.dashTimer > 0) {
+    for (let i = 1; i <= 3; i++) {
+      const trailX = sx - p.dir * i * 4;
+      ctx.save();
+      ctx.globalAlpha = 0.18 - i * 0.04;
+      ctx.shadowColor = C.visor;
+      ctx.shadowBlur  = 4;
+      ctx.fillStyle   = C.visor;
+      ctx.fillRect(trailX, sy + 2, p.w, p.h - 4);
+      ctx.restore();
+    }
+  }
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  if (p.dir < 0) { ctx.translate(p.w, 0); ctx.scale(-1, 1); }
+
+  // Hurt flash
+  if (p.hurtTimer > 0 && Math.floor(p.hurtTimer / 3) % 2 === 1) {
+    ctx.globalAlpha = 0.25;
+  }
+
+  ctx.shadowColor = C.player;
+  ctx.shadowBlur  = 8;
+
+  // Body
+  ctx.fillStyle = C.playerBody;
+  ctx.fillRect(1, 4, PW - 2, PH - 4);
+
+  // Armor stripes
+  ctx.fillStyle = C.player;
+  ctx.fillRect(1, 4, 2, PH - 7);     // left vertical stripe
+  ctx.fillRect(PW - 3, 4, 2, PH - 7); // right vertical stripe
+  ctx.fillRect(2, 4, PW - 4, 2);      // top horizontal stripe
+
+  // Belt
+  ctx.fillStyle = C.playerDim;
+  ctx.fillRect(1, PH - 5, PW - 2, 2);
+
+  // Head
+  ctx.fillStyle = C.playerBody;
+  ctx.fillRect(2, 0, PW - 4, 5);
+  ctx.fillStyle = C.player;
+  ctx.fillRect(2, 0, PW - 4, 1);     // helmet top
+  ctx.fillRect(2, 0, 1, 5);          // left side
+  ctx.fillRect(PW - 3, 0, 1, 5);     // right side
+
+  // Visor
+  ctx.shadowColor = C.visor;
+  ctx.shadowBlur  = 6;
+  ctx.fillStyle   = C.visor;
+  ctx.fillRect(4, 1, 3, 2);
+
+  // Legs (animate when running)
+  ctx.shadowColor = C.player;
+  ctx.shadowBlur  = 5;
+  ctx.fillStyle   = C.player;
+  if (p.state === 'run') {
+    const leg = Math.sin(p.frame * 0.35) * 2.5;
+    ctx.fillRect(1,      PH - 4, 3, 3 + Math.max(0,  leg));
+    ctx.fillRect(PW - 4, PH - 4, 3, 3 + Math.max(0, -leg));
+  } else if (p.state === 'jump' || p.state === 'fall') {
+    ctx.fillRect(1,      PH - 4, 3, 2);
+    ctx.fillRect(PW - 4, PH - 4, 3, 2);
+  } else {
+    ctx.fillRect(1,      PH - 4, 3, 3);
+    ctx.fillRect(PW - 4, PH - 4, 3, 3);
+  }
+
+  // Attack slash
+  if (p.state === 'attack') {
+    const progress = 1 - p.atkTimer / ATK_FRAMES;
+    const slashLen = ATK_RANGE * progress;
+    ctx.fillStyle   = C.player;
+    ctx.shadowColor = C.player;
+    ctx.shadowBlur  = 12;
+    ctx.fillRect(PW - 2, PH / 2 - 2, slashLen, 2);
+    ctx.fillRect(PW - 2, PH / 2,     slashLen * 0.7, 2);
+  }
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — HUD
+// ─────────────────────────────────────────────────────────────
+function drawHUD(p, floorNum, isBoss, dashCooldown) {
+  // HP
+  text('HP', 6, 7, { size: 5, color: C.textDim });
+  for (let i = 0; i < p.maxHp; i++) {
+    const filled = i < p.hp;
+    ctx.fillStyle   = filled ? '#ff3355' : '#1a0010';
+    ctx.shadowColor = filled ? '#ff0033' : 'transparent';
+    ctx.shadowBlur  = filled ? 5 : 0;
+    ctx.fillRect(22 + i * 11, 7, 9, 8);
+  }
+  ctx.shadowBlur = 0;
+
+  // Coins
+  ctx.save();
+  ctx.shadowColor = C.coinGlow;
+  ctx.shadowBlur  = 5;
+  ctx.fillStyle   = C.coin;
+  ctx.beginPath(); ctx.arc(8, 24, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  text(`${p.coins}`, 14, 20, { size: 5, color: C.coin, glow: C.coinGlow, blur: 3 });
+
+  // Floor
+  text(`FLOOR ${floorNum}${isBoss ? ' [BOSS]' : ''}`, GW / 2, 7,
+    { size: 5, align: 'center', color: C.textDim });
+
+  // Powerup icons (top-right)
+  if (p.powerups.length > 0) {
+    const PCOLS = { double_jump: C.visor, blade_storm: C.player,
+                    iron_skin: '#888', speed_demon: '#ff0', phase_dash: '#f0f', lifesteal: '#f33' };
+    text('PWR', GW - 6, 7, { size: 4, align: 'right', color: C.textDim });
+    p.powerups.forEach((k, i) => {
+      const col = PCOLS[k] || '#fff';
+      ctx.fillStyle   = col;
+      ctx.shadowColor = col;
+      ctx.shadowBlur  = 4;
+      ctx.fillRect(GW - 9 - i * 10, 14, 8, 8);
+    });
+    ctx.shadowBlur = 0;
+  }
+
+  // Dash cooldown bar (bottom-left)
+  if (dashCooldown > 0) {
+    const pct = 1 - dashCooldown / DASH_COOLDOWN;
+    text('DASH', 6, GH - 18, { size: 3, color: C.textDim });
+    fillRect(6, GH - 13, 32, 4, '#111');
+    fillRect(6, GH - 13, 32 * pct, 4, C.visor);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — TITLE SCREEN
+// ─────────────────────────────────────────────────────────────
+function drawTitle(f) {
+  fillRect(0, 0, GW, GH, C.bg);
+
+  // Animated grid
+  ctx.save();
+  ctx.strokeStyle = C.dim;
+  ctx.lineWidth   = 0.5;
+  const gOff = (f * 0.25) % 16;
+  for (let x = -gOff; x < GW + 16; x += 16) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
+  }
+  for (let y = 0; y < GH; y += 16) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Scan artifact
+  const scanY = (f * 0.4) % GH;
+  ctx.save();
+  ctx.fillStyle = 'rgba(57,255,20,0.04)';
+  ctx.fillRect(0, scanY, GW, 3);
+  ctx.restore();
+
+  const pulse = 0.75 + 0.25 * Math.sin(f * 0.05);
+  ctx.save();
+  ctx.shadowColor = C.player;
+  ctx.shadowBlur  = 20 * pulse;
+  text('VAULT', GW / 2, 32, { size: 26, align: 'center', color: C.player });
+  text('RUN',   GW / 2, 60, { size: 26, align: 'center', color: C.player });
+  ctx.restore();
+
+  text('ROGUELITE PLATFORMER', GW / 2, 94,
+    { size: 5, align: 'center', color: C.textDim });
+
+  if (Math.floor(f / 28) % 2 === 0) {
+    text('[ PRESS ENTER TO START ]', GW / 2, 113,
+      { size: 6, align: 'center', color: C.text, glow: C.player, blur: 6 });
+  }
+
+  text('ARROWS/WASD  Z=ATTACK  SHIFT=DASH  SPACE=JUMP',
+    GW / 2, 131, { size: 4, align: 'center', color: C.textDim });
+
+  const meta = loadMeta();
+  text(`COINS: ${meta.coins}`, 8, 8, { size: 5, color: C.coin, glow: C.coinGlow, blur: 4 });
+  if (meta.coins >= 15) {
+    text('[ S ] SHOP', GW - 8, 8, { size: 5, align: 'right', color: C.textDim });
+  }
+
+  text('v0.2', GW / 2, GH - 10, { size: 4, align: 'center', color: C.dim });
+}
+
+// ─────────────────────────────────────────────────────────────
+// GAME STATE MACHINE
+// ─────────────────────────────────────────────────────────────
+let gameState   = 'title';
+let frame       = 0;
+let meta        = loadMeta();
+
+let level       = null;
+let player      = null;
+let camera      = null;
+let projectiles = [];
+let floorNum    = 1;
+let isBoss      = false;
+let coinsRun    = 0;
+
+// ── Helpers ──────────────────────────────────────
+function startRun() {
+  meta        = loadMeta();
+  floorNum    = 1;
+  isBoss      = false;
+  coinsRun    = 0;
+  projectiles = [];
+  particles   = [];
+  level  = new Level(floorNum, isBoss);
+  player = newPlayer(TS * 2, (CHUNK_H - 2) * TS - PH, meta);
+  camera = newCamera();
+  camera.x = 0;
+  camera.y = 0;
+  gameState = 'playing';
+}
+
+// ── Update ───────────────────────────────────────
 function update() {
   frame++;
 
-  if (state === 'title') {
-    if (just('Enter', 'NumpadEnter')) {
-      // placeholder — gameplay comes in next steps
-      state = 'title';
+  if (gameState === 'title') {
+    if (just('Enter', 'NumpadEnter')) startRun();
+    // Shop shortcut placeholder
+    if (just('KeyS') && meta.coins >= 15) { /* step 6 */ }
+
+  } else if (gameState === 'playing') {
+    updatePlayer(player, level, projectiles);
+    projectiles = updateProjectiles(projectiles, level);
+    updateParticles();
+    updateCamera(camera, player, level);
+
+    // Coin pickup
+    for (const coin of level.coins) {
+      if (!coin.taken &&
+          Math.abs(player.x + player.w / 2 - coin.x) < 12 &&
+          Math.abs(player.y + player.h / 2 - coin.y) < 12) {
+        coin.taken = true;
+        player.coins++;
+        coinsRun++;
+        spawnParticles(coin.x - camera.x, coin.y - camera.y, C.coin, 5,
+          { vxRange: 1.5, vyRange: 1.5, vyBias: -1, life: 14, size: 1.5 });
+      }
     }
+
+    // All enemies dead → open exit  (placeholder: just open immediately for now)
+    if (!level.exitOpen && level.enemies.every(e => e.dead)) {
+      level.exitOpen = true;
+    }
+
+    // Exit portal collision
+    if (level.exitOpen) {
+      const portal = { x: level.exitX - 8, y: level.exitY - 16, w: 20, h: 24 };
+      if (overlaps(player, portal)) {
+        // Placeholder win for step 2 — just go back to title
+        meta.coins += coinsRun;
+        saveMeta(meta);
+        gameState = 'title';
+      }
+    }
+
+    // Player dead
+    if (player.dead) {
+      meta.coins += coinsRun;
+      saveMeta(meta);
+      gameState = 'title';
+    }
+
   }
 
   clearInput();
 }
 
+// ── Render ───────────────────────────────────────
 function render() {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, GW, GH);
 
-  if (state === 'title') drawTitle(frame);
+  if (gameState === 'title') {
+    drawTitle(frame);
+
+  } else if (gameState === 'playing') {
+    const cx = Math.round(camera.x);
+    const cy = Math.round(camera.y);
+
+    drawBackground(cx, cy);
+    drawLevel(level, cx, cy);
+    drawCoins(level, cx, cy, frame);
+    drawExit(level, cx, cy, frame);
+    drawParticles(cx, cy);
+
+    // Draw projectiles
+    for (const proj of projectiles) {
+      ctx.save();
+      ctx.shadowColor = proj.color;
+      ctx.shadowBlur  = 6;
+      ctx.fillStyle   = proj.color;
+      ctx.fillRect(proj.x - cx, proj.y - cy, proj.w, proj.h);
+      ctx.restore();
+    }
+
+    drawPlayer(player, cx, cy);
+    drawHUD(player, floorNum, isBoss, player.dashCooldown);
+  }
 
   applyCRT();
 }
@@ -345,11 +1227,7 @@ function render() {
 // ─────────────────────────────────────────────────────────────
 // GAME LOOP
 // ─────────────────────────────────────────────────────────────
-function loop() {
-  update();
-  render();
-  requestAnimationFrame(loop);
-}
+function loop() { update(); render(); requestAnimationFrame(loop); }
 loop();
 </script>
 </body>
