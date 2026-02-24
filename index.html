@@ -44,6 +44,23 @@ const ATK_FRAMES    = 14;
 const ATK_COOLDOWN  = 22;
 const ATK_RANGE     = 24;
 
+const POWERUPS = {
+  double_jump: { label: 'DOUBLE JUMP',  desc: 'Jump again in mid-air',          color: '#00e5ff' },
+  blade_storm: { label: 'BLADESTORM',   desc: 'Attacks fire a projectile',       color: '#39ff14' },
+  iron_skin:   { label: 'IRON SKIN',    desc: '+1 max HP  ·  restore 1 HP',      color: '#aaaaaa' },
+  speed_demon: { label: 'SPEED DEMON',  desc: '1.32× movement speed',            color: '#ffff00' },
+  phase_dash:  { label: 'PHASE DASH',   desc: 'Faster dash, immune to bullets',  color: '#ff00ff' },
+  lifesteal:   { label: 'LIFESTEAL',    desc: 'Recover HP on kills',             color: '#ff4444' },
+};
+const POWERUP_KEYS = Object.keys(POWERUPS);
+
+// Shop items (meta-progression)
+const SHOP_ITEMS = [
+  { key: 'armorLevel',   label: 'REINFORCED SUIT',  desc: '+1 starting HP  (max +3)',   cost: 10, maxOwn: 3, color: '#ff3355' },
+  { key: 'speedLevel',   label: 'OVERCLOCKED LEGS', desc: 'Start every run with SPEED DEMON', cost: 15, maxOwn: 1, color: '#ffff00' },
+  { key: 'arsenalLevel', label: 'WEAPONS CACHE',    desc: 'Start every run with BLADESTORM', cost: 15, maxOwn: 1, color: '#39ff14' },
+];
+
 // Phosphor-green palette
 const C = {
   bg:        '#020c02',
@@ -458,7 +475,8 @@ class Level {
     this.tileH    = CHUNK_H;
     this._tiles   = null;
     this.coins    = [];
-    this.enemies  = [];   // filled in step 4
+    this.enemies  = [];
+    this.boss     = null; // reference to boss enemy (boss floors only)
     this.exitX    = 0;    // pixel coords of portal
     this.exitY    = 0;
     this.exitOpen = false;
@@ -502,10 +520,13 @@ class Level {
     this.exitY    = (CHUNK_H - 2) * TS;
     this.exitOpen = false;
 
-    // Spawn enemies in mid-chunks
-    if (!this.isBoss) this.spawnEnemies(this.floor);
-    // Exit opens immediately if no enemies were spawned
-    if (this.enemies.length === 0) this.exitOpen = true;
+    // Spawn enemies (regular floors) or boss (boss floor)
+    if (this.isBoss) {
+      this.spawnBoss();
+    } else {
+      this.spawnEnemies(this.floor);
+      if (this.enemies.length === 0) this.exitOpen = true;
+    }
   }
 
   getTile(col, row) {
@@ -517,6 +538,16 @@ class Level {
   isSpike(c, r)    { return this.getTile(c, r) === 3; }
   get pxW() { return this.tileW * TS; }
   get pxH() { return this.tileH * TS; }
+
+  // ── Boss spawning ───────────────────────────────────────────
+  spawnBoss() {
+    const bw = 24, bh = 28;
+    const midX = Math.floor(this.tileW / 2) * TS - bw / 2;
+    const groundY = (CHUNK_H - 1) * TS - bh;
+    const b = newBoss(midX, groundY);
+    this.enemies.push(b);
+    this.boss = b;
+  }
 
   // ── Enemy spawning (called after tile layout) ──────────────
   spawnEnemies(floor) {
@@ -668,12 +699,22 @@ function newPlayer(x, y, meta) {
     state:  'idle',
     powerups: [],
     hasDoubleJump: false,
-    hasBladestorm: false,
-    hasSpeedDemon:  (meta.speedLevel | 0) > 0,
+    hasBladestorm: (meta.arsenalLevel | 0) > 0,
+    hasSpeedDemon: (meta.speedLevel   | 0) > 0,
     hasPhaseDash:  false,
     hasLifesteal:  false,
     dead: false,
   };
+}
+
+function applyPowerup(p, key) {
+  if (!p.powerups.includes(key)) p.powerups.push(key);
+  if (key === 'double_jump') p.hasDoubleJump = true;
+  if (key === 'blade_storm') p.hasBladestorm = true;
+  if (key === 'iron_skin')   { p.maxHp++; p.hp = Math.min(p.hp + 1, p.maxHp); }
+  if (key === 'speed_demon') p.hasSpeedDemon = true;
+  if (key === 'phase_dash')  p.hasPhaseDash  = true;
+  if (key === 'lifesteal')   p.hasLifesteal  = true;
 }
 
 function updatePlayer(p, level, projectiles) {
@@ -913,11 +954,180 @@ function hurtEnemy(e, dmg, player) {
 
 function killEnemy(e) {
   e.dead = true;
-  const col = e.type === 'jumper' ? '#cc00ff' : C.enemy;
-  spawnParticles(e.x + e.w / 2, e.y + e.h / 2, col, 12,
-    { vxRange: 3.5, vyRange: 3.5, vyBias: -2, life: 28, size: 2 });
-  // Coin drop (always)
-  // Returned to calling site to insert into level.coins
+  const isBossType = e.type === 'boss';
+  const col = e.type === 'jumper' ? '#cc00ff' : isBossType ? C.boss : C.enemy;
+  const n   = isBossType ? 30 : 12;
+  spawnParticles(e.x + e.w / 2, e.y + e.h / 2, col, n,
+    { vxRange: isBossType ? 5 : 3.5, vyRange: isBossType ? 5 : 3.5,
+      vyBias: isBossType ? -3 : -2, life: isBossType ? 45 : 28, size: isBossType ? 3 : 2 });
+  if (isBossType) {
+    // Extra secondary burst
+    spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ffffff', 12,
+      { vxRange: 4, vyRange: 4, vyBias: -2.5, life: 30, size: 2 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// BOSS
+// ─────────────────────────────────────────────────────────────
+function newBoss(x, y) {
+  return {
+    type: 'boss',
+    x, y, w: 24, h: 28,
+    vx: 0, vy: 0,
+    hp: 12, maxHp: 12,
+    dir: -1,
+    onGround: false,
+    frame:      0,
+    hurtTimer:  0,
+    dead: false,
+    phase:      1,
+    shootTimer: 110,
+    jumpCooldown: 160,
+  };
+}
+
+function fireBossShot(b, player, projectiles) {
+  const bx = b.x + b.w / 2;
+  const by = b.y + b.h * 0.35;
+  const angle = Math.atan2(
+    player.y + player.h / 2 - by,
+    player.x + player.w / 2 - bx,
+  );
+  const count  = b.phase === 2 ? 5 : 3;
+  const spread = 0.30;
+  const spd    = b.phase === 2 ? 3.0 : 2.5;
+  for (let i = 0; i < count; i++) {
+    const a = angle + (i - Math.floor(count / 2)) * spread;
+    projectiles.push(newProjectile(bx, by, Math.cos(a) * spd, Math.sin(a) * spd, 'enemy', C.boss));
+  }
+  spawnParticles(bx, by, C.boss, 4,
+    { vxRange: 1.5, vyRange: 1.5, vyBias: -0.5, life: 8, size: 1.5 });
+}
+
+function updateBoss(b, level, player, projectiles) {
+  b.frame++;
+  if (b.hurtTimer > 0) b.hurtTimer--;
+
+  // Phase transition
+  const newPhase = b.hp <= b.maxHp / 2 ? 2 : 1;
+  if (newPhase === 2 && b.phase === 1) {
+    b.phase = 2;
+    b.shootTimer = Math.min(b.shootTimer, 35);
+    spawnParticles(b.x + b.w / 2, b.y + b.h / 2, C.boss, 18,
+      { vxRange: 4, vyRange: 4, vyBias: -2.5, life: 35, size: 2.5 });
+  }
+
+  const spd = b.phase === 2 ? 1.1 : 0.65;
+
+  // Walk toward player (stop when close)
+  const dx = player.x + player.w / 2 - (b.x + b.w / 2);
+  if (Math.abs(dx) > 28) {
+    b.dir = Math.sign(dx);
+    b.vx  = b.dir * spd;
+  } else {
+    b.vx  = b.vx * 0.85; // decelerate
+    b.dir = Math.sign(dx) || b.dir;
+  }
+
+  moveAndCollide(b, level);
+
+  // Level-edge guard
+  if (b.x <= 2 && b.vx < 0)                  { b.vx = 0; b.dir = 1; }
+  if (b.x + b.w >= level.pxW - 2 && b.vx > 0) { b.vx = 0; b.dir = -1; }
+
+  // Jump (phase 2 only)
+  if (b.phase === 2 && b.onGround) {
+    b.jumpCooldown--;
+    if (b.jumpCooldown <= 0) {
+      b.jumpCooldown = rng.int(120, 200);
+      b.vy = -5.5;
+      spawnParticles(b.x + b.w / 2, b.y + b.h, C.boss, 6,
+        { vxRange: 2, vyRange: 1, vyBias: 0, life: 12, size: 2 });
+    }
+  }
+
+  // Shoot
+  b.shootTimer--;
+  if (b.shootTimer <= 0) {
+    b.shootTimer = b.phase === 2 ? rng.int(50, 75) : rng.int(85, 120);
+    fireBossShot(b, player, projectiles);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — BOSS SPRITE
+// ─────────────────────────────────────────────────────────────
+function drawBoss(b, camX, camY) {
+  if (b.dead) return;
+  const sx = Math.round(b.x - camX);
+  const sy = Math.round(b.y - camY);
+  if (sx + b.w < -4 || sx > GW + 4 || sy + b.h < -4 || sy > GH + 4) return;
+  if (b.hurtTimer > 0 && Math.floor(b.hurtTimer / 2) % 2 === 1) return;
+
+  const p2    = b.phase === 2;
+  const pulse = 0.6 + 0.4 * Math.sin(b.frame * 0.1);
+  const mainC = p2 ? C.boss : '#cc0044';
+  const dimC  = p2 ? '#4a0018' : '#2e000e';
+  const glowC = p2 ? '#ff88cc' : C.boss;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+  if (b.dir < 0) { ctx.translate(b.w, 0); ctx.scale(-1, 1); }
+
+  ctx.shadowColor = glowC;
+  ctx.shadowBlur  = (p2 ? 14 : 8) * pulse;
+
+  // ── Head ──
+  ctx.fillStyle = dimC;
+  ctx.fillRect(4, 0, 16, 8);
+  ctx.fillStyle = mainC;
+  ctx.fillRect(4, 0, 16, 2);  // helmet top
+  ctx.fillRect(4, 0, 2, 8);   // left face
+  ctx.fillRect(18, 0, 2, 8);  // right face
+  // Eyes
+  ctx.fillStyle   = p2 ? '#ffccee' : '#ff3333';
+  ctx.shadowColor = p2 ? '#ffaadd' : '#ff0000';
+  ctx.shadowBlur  = 8 * pulse;
+  ctx.fillRect(7, 3, 4, 4);   // left eye
+  ctx.fillRect(13, 3, 4, 4);  // right eye
+
+  // ── Shoulder pads ──
+  ctx.fillStyle   = mainC;
+  ctx.shadowColor = glowC;
+  ctx.shadowBlur  = 6;
+  ctx.fillRect(0, 6, 5, 8);   // left
+  ctx.fillRect(19, 6, 5, 8);  // right
+
+  // ── Torso ──
+  ctx.fillStyle = dimC;
+  ctx.fillRect(3, 8, 18, 13);
+  ctx.fillStyle = mainC;
+  ctx.fillRect(3, 8, 3, 12);   // left stripe
+  ctx.fillRect(18, 8, 3, 12);  // right stripe
+  ctx.fillRect(3, 8, 18, 2);   // chest bar
+
+  // Energy core
+  ctx.fillStyle   = p2 ? '#ffffff' : mainC;
+  ctx.shadowColor = p2 ? '#ffffff' : glowC;
+  ctx.shadowBlur  = 12 * pulse;
+  ctx.fillRect(8, 12, 8, 4);
+
+  // ── Belt ──
+  ctx.fillStyle   = mainC;
+  ctx.shadowColor = glowC;
+  ctx.shadowBlur  = 4;
+  ctx.fillRect(3, 21, 18, 3);
+
+  // ── Legs ──
+  ctx.fillStyle = dimC;
+  ctx.fillRect(3, 24, 8, 4);
+  ctx.fillRect(13, 24, 8, 4);
+  ctx.fillStyle = mainC;
+  ctx.fillRect(3, 27, 8, 1);   // left boot
+  ctx.fillRect(13, 27, 8, 1);  // right boot
+
+  ctx.restore();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1296,6 +1506,27 @@ function drawHUD(p, floorNum, isBoss, dashCooldown) {
     fillRect(6, GH - 13, 32, 4, '#111');
     fillRect(6, GH - 13, 32 * pct, 4, C.visor);
   }
+
+  // Boss HP bar (bottom-center, boss floors only)
+  if (isBoss && level) {
+    const b = level.boss;
+    if (b && !b.dead) {
+      const bw = 130;
+      const bx = (GW - bw) / 2;
+      const by = GH - 14;
+      const p2 = b.hp <= b.maxHp / 2;
+      const hpColor = p2 ? '#ff88cc' : C.boss;
+      ctx.save();
+      ctx.shadowColor = hpColor;
+      ctx.shadowBlur  = 6;
+      text('THE  WARDEN', GW / 2, by - 9, { size: 4, align: 'center', color: hpColor });
+      ctx.restore();
+      fillRect(bx - 1, by - 1, bw + 2, 7, '#1a0010');
+      fillRect(bx, by, bw, 5, '#300015');
+      fillRect(bx, by, Math.ceil(bw * b.hp / b.maxHp), 5, hpColor);
+      if (p2) text('PHASE 2', GW / 2, by + 7, { size: 3, align: 'center', color: '#ff88cc' });
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1349,7 +1580,126 @@ function drawTitle(f) {
     text('[ S ] SHOP', GW - 8, 8, { size: 5, align: 'right', color: C.textDim });
   }
 
-  text('v0.2', GW / 2, GH - 10, { size: 4, align: 'center', color: C.dim });
+  text('v0.3', GW / 2, GH - 10, { size: 4, align: 'center', color: C.dim });
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — POWERUP SELECT
+// ─────────────────────────────────────────────────────────────
+function drawPowerup() {
+  fillRect(0, 0, GW, GH, C.bg);
+  ctx.save();
+  ctx.strokeStyle = C.dim; ctx.lineWidth = 0.4;
+  for (let x = 0; x < GW; x += 16) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,GH); ctx.stroke(); }
+  for (let y = 0; y < GH; y += 16) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(GW,y); ctx.stroke(); }
+  ctx.restore();
+
+  text('CHOOSE  UPGRADE', GW / 2, 9, { size: 7, align: 'center', color: C.text, glow: C.player, blur: 6 });
+  text(`FLOOR ${floorNum - 1} CLEARED`, GW / 2, 20, { size: 4, align: 'center', color: C.textDim });
+
+  const n  = powerupChoices.length;
+  const cw = 86, ch = 108;
+  const gx = 6;
+  const totalW = n * cw + (n - 1) * gx;
+  const startX = (GW - totalW) / 2;
+  const cy = 34;
+
+  powerupChoices.forEach((key, i) => {
+    const pu = POWERUPS[key];
+    const x0 = Math.floor(startX + i * (cw + gx));
+    const pulse = 0.6 + 0.4 * Math.sin(frame * 0.07 + i * 1.2);
+
+    fillRect(x0, cy, cw, ch, C.uiBg);
+    ctx.save();
+    ctx.strokeStyle = pu.color;
+    ctx.shadowColor = pu.color;
+    ctx.shadowBlur  = 5 * pulse;
+    ctx.lineWidth   = 1;
+    ctx.strokeRect(x0, cy, cw, ch);
+    ctx.restore();
+
+    // Key hint
+    text(`[ ${i + 1} ]`, x0 + cw / 2, cy + 6, { size: 5, align: 'center', color: C.textDim });
+    // Color square
+    glowRect(x0 + cw / 2 - 5, cy + 18, 10, 10, pu.color, pu.color, 7);
+    // Name (may wrap — two short words)
+    text(pu.label, x0 + cw / 2, cy + 36, { size: 5, align: 'center', color: pu.color, glow: pu.color, blur: 3 });
+    // Desc (up to 2 lines of 4px)
+    const words = pu.desc.split('  ·  ');
+    words.forEach((w, wi) => text(w, x0 + cw / 2, cy + 52 + wi * 12, { size: 4, align: 'center', color: C.textDim }));
+  });
+
+  text('[ ESC ]  SKIP', GW / 2, GH - 10, { size: 4, align: 'center', color: C.textDim });
+}
+
+// ─────────────────────────────────────────────────────────────
+// RENDER — GAME OVER / WIN / SHOP
+// ─────────────────────────────────────────────────────────────
+function drawDead() {
+  fillRect(0, 0, GW, GH, C.bg);
+  drawParticles(0, 0);
+  const pulse = 0.7 + 0.3 * Math.sin(frame * 0.06);
+  ctx.save();
+  ctx.shadowColor = C.hurt;
+  ctx.shadowBlur  = 20 * pulse;
+  text('YOU  DIED', GW / 2, 36, { size: 18, align: 'center', color: '#ff2222' });
+  ctx.restore();
+  text(`REACHED FLOOR ${deathFloor}`, GW / 2, 80, { size: 6, align: 'center', color: C.textDim });
+  text(`COINS EARNED: ${deathCoins}`, GW / 2, 95, { size: 5, align: 'center', color: C.coin, glow: C.coinGlow, blur: 3 });
+  if (Math.floor(frame / 30) % 2 === 0)
+    text('[ ENTER ]  RETURN TO TITLE', GW / 2, 120, { size: 5, align: 'center', color: C.text, glow: C.player, blur: 4 });
+}
+
+function drawWin() {
+  fillRect(0, 0, GW, GH, C.bg);
+  drawParticles(0, 0);
+  const pulse = 0.6 + 0.4 * Math.sin(frame * 0.07);
+  ctx.save();
+  ctx.shadowColor = C.exit;
+  ctx.shadowBlur  = 24 * pulse;
+  text('VAULT', GW / 2, 26, { size: 22, align: 'center', color: C.exit });
+  text('CLEARED', GW / 2, 50, { size: 16, align: 'center', color: C.exit });
+  ctx.restore();
+  text('THE WARDEN HAS FALLEN', GW / 2, 82, { size: 5, align: 'center', color: C.textDim });
+  text(`COINS EARNED: ${meta.coins}`, GW / 2, 96, { size: 5, align: 'center', color: C.coin, glow: C.coinGlow, blur: 3 });
+  if (Math.floor(frame / 30) % 2 === 0)
+    text('[ ENTER ]  RETURN TO TITLE', GW / 2, 118, { size: 5, align: 'center', color: C.text, glow: C.player, blur: 4 });
+}
+
+function drawShop() {
+  fillRect(0, 0, GW, GH, C.bg);
+  text('UPGRADE  SHOP', GW / 2, 7, { size: 7, align: 'center', color: C.text, glow: C.player, blur: 5 });
+  text(`COINS: ${meta.coins}`, GW / 2, 19,
+    { size: 5, align: 'center', color: C.coin, glow: C.coinGlow, blur: 3 });
+
+  SHOP_ITEMS.forEach((item, i) => {
+    const owned  = meta[item.key] | 0;
+    const maxed  = owned >= item.maxOwn;
+    const canBuy = !maxed && meta.coins >= item.cost;
+    const col    = maxed ? C.textDim : canBuy ? item.color : '#333';
+    const y0     = 33 + i * 38;
+
+    fillRect(8, y0, GW - 16, 32, C.uiBg);
+    ctx.save();
+    ctx.strokeStyle = col;
+    ctx.shadowColor = col;
+    ctx.shadowBlur  = maxed ? 0 : 4;
+    ctx.lineWidth   = 1;
+    ctx.strokeRect(8, y0, GW - 16, 32);
+    ctx.restore();
+
+    text(`[${i + 1}]  ${item.label}`, 14, y0 + 5, { size: 5, color: col });
+    text(item.desc, 14, y0 + 16, { size: 4, color: C.textDim });
+    if (maxed) {
+      text('OWNED', GW - 14, y0 + 5, { size: 4, align: 'right', color: C.textDim });
+    } else {
+      text(`${item.cost} ¢`, GW - 14, y0 + 5,
+        { size: 4, align: 'right', color: canBuy ? C.coin : '#555' });
+    }
+  });
+
+  if (shopMsg) text(shopMsg, GW / 2, GH - 22, { size: 5, align: 'center', color: C.text, glow: C.player, blur: 4 });
+  text('[ ESC / ENTER ]  BACK', GW / 2, GH - 10, { size: 4, align: 'center', color: C.textDim });
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1367,6 +1717,12 @@ let floorNum    = 1;
 let isBoss      = false;
 let coinsRun    = 0;
 
+// Extra state
+let powerupChoices = [];   // current powerup options
+let deathFloor     = 1;    // floor reached when dying
+let deathCoins     = 0;    // coins earned when dying
+let shopMsg        = '';   // feedback text in shop
+
 // ── Helpers ──────────────────────────────────────
 function startRun() {
   meta        = loadMeta();
@@ -1377,10 +1733,44 @@ function startRun() {
   particles   = [];
   level  = new Level(floorNum, isBoss);
   player = newPlayer(TS * 2, (CHUNK_H - 2) * TS - PH, meta);
-  camera = newCamera();
+  // Apply arsenal-level bladestorm as starting powerup icon
+  if ((meta.arsenalLevel | 0) > 0 && !player.powerups.includes('blade_storm'))
+    player.powerups.push('blade_storm');
+  if ((meta.speedLevel | 0) > 0 && !player.powerups.includes('speed_demon'))
+    player.powerups.push('speed_demon');
+  camera   = newCamera();
   camera.x = 0;
   camera.y = 0;
   gameState = 'playing';
+}
+
+function loadNextLevel() {
+  projectiles = [];
+  particles   = [];
+  level  = new Level(floorNum, isBoss);
+  player.x  = TS * 2;
+  player.y  = (CHUNK_H - 2) * TS - PH;
+  player.vx = 0;
+  player.vy = 0;
+  camera   = newCamera();
+  camera.x = 0;
+  camera.y = 0;
+  gameState = 'playing';
+}
+
+function nextFloor() {
+  floorNum++;
+  isBoss = (floorNum === 4);   // floor 4 is the boss
+
+  // Offer powerup upgrade between every floor
+  const available = POWERUP_KEYS.filter(k => !player.powerups.includes(k));
+  powerupChoices  = rng.shuffle([...available]).slice(0, Math.min(3, available.length));
+
+  if (powerupChoices.length === 0) {
+    loadNextLevel();
+  } else {
+    gameState = 'powerup';
+  }
 }
 
 // ── Update ───────────────────────────────────────
@@ -1388,16 +1778,47 @@ function update() {
   frame++;
 
   if (gameState === 'title') {
+    meta = loadMeta();
     if (just('Enter', 'NumpadEnter')) startRun();
-    // Shop shortcut placeholder
-    if (just('KeyS') && meta.coins >= 15) { /* step 6 */ }
+    if (just('KeyS')) { shopMsg = ''; gameState = 'shop'; }
+
+  } else if (gameState === 'powerup') {
+    for (let i = 0; i < powerupChoices.length; i++) {
+      if (just(`Digit${i + 1}`, `Numpad${i + 1}`)) {
+        applyPowerup(player, powerupChoices[i]);
+        powerupChoices = [];
+        loadNextLevel();
+        break;
+      }
+    }
+    if (just('Escape')) { powerupChoices = []; loadNextLevel(); }
+
+  } else if (gameState === 'dead') {
+    if (just('Enter', 'NumpadEnter')) gameState = 'title';
+
+  } else if (gameState === 'win') {
+    if (just('Enter', 'NumpadEnter')) gameState = 'title';
+
+  } else if (gameState === 'shop') {
+    SHOP_ITEMS.forEach((item, i) => {
+      if (!just(`Digit${i + 1}`, `Numpad${i + 1}`)) return;
+      const owned = meta[item.key] | 0;
+      if (owned >= item.maxOwn) { shopMsg = 'ALREADY MAXED'; return; }
+      if (meta.coins < item.cost) { shopMsg = 'NOT ENOUGH COINS'; return; }
+      meta.coins -= item.cost;
+      meta[item.key] = owned + 1;
+      saveMeta(meta);
+      shopMsg = 'PURCHASED!';
+    });
+    if (just('Escape', 'Enter', 'NumpadEnter')) { shopMsg = ''; gameState = 'title'; }
 
   } else if (gameState === 'playing') {
     updatePlayer(player, level, projectiles);
 
-    // ── Update enemies ──────────────────────────────────────
+    // ── Update enemies / boss ────────────────────────────────
     for (const e of level.enemies) {
-      updateEnemy(e, level, player, projectiles);
+      if (e.type === 'boss') updateBoss(e, level, player, projectiles);
+      else                   updateEnemy(e, level, player, projectiles);
     }
 
     // ── Player melee attack vs enemies (fires on first frame) ──
@@ -1476,18 +1897,34 @@ function update() {
     if (level.exitOpen) {
       const portal = { x: level.exitX - 8, y: level.exitY - 16, w: 20, h: 24 };
       if (overlaps(player, portal)) {
-        // Placeholder: save coins and return to title (full flow in step 4)
-        meta.coins += coinsRun;
-        saveMeta(meta);
-        gameState = 'title';
+        if (isBoss) {
+          // Boss floor cleared → victory
+          meta.coins += coinsRun;
+          coinsRun = 0;
+          saveMeta(meta);
+          // Celebration particles
+          for (let i = 0; i < 6; i++) {
+            spawnParticles(rng.int(40, GW - 40), rng.int(30, GH - 30),
+              rng.pick([C.exit, C.coin, C.text, C.boss]), 8,
+              { vxRange: 3, vyRange: 3, vyBias: -2.5, life: 40, size: 2 });
+          }
+          gameState = 'win';
+        } else {
+          nextFloor();
+        }
       }
     }
 
     // ── Player dead ─────────────────────────────────────────
     if (player.dead) {
+      deathFloor = floorNum;
+      deathCoins = coinsRun;
       meta.coins += coinsRun;
+      coinsRun   = 0;
       saveMeta(meta);
-      gameState = 'title';
+      spawnParticles(player.x + player.w / 2, player.y + player.h / 2,
+        C.hurt, 14, { vxRange: 4, vyRange: 4, vyBias: -2, life: 35, size: 2.5 });
+      gameState = 'dead';
     }
 
   }
@@ -1513,14 +1950,17 @@ function render() {
     drawExit(level, cx, cy, frame);
     drawParticles(cx, cy);
 
-    // Draw enemies
-    for (const e of level.enemies) drawEnemy(e, cx, cy);
+    // Draw regular enemies + boss
+    for (const e of level.enemies) {
+      if (e.type === 'boss') drawBoss(e, cx, cy);
+      else                   drawEnemy(e, cx, cy);
+    }
 
     // Draw projectiles
     for (const proj of projectiles) {
       ctx.save();
       ctx.shadowColor = proj.color;
-      ctx.shadowBlur  = 6;
+      ctx.shadowBlur  = proj.owner === 'enemy' ? 8 : 6;
       ctx.fillStyle   = proj.color;
       ctx.fillRect(proj.x - cx, proj.y - cy, proj.w, proj.h);
       ctx.restore();
@@ -1528,6 +1968,18 @@ function render() {
 
     drawPlayer(player, cx, cy);
     drawHUD(player, floorNum, isBoss, player.dashCooldown);
+
+  } else if (gameState === 'powerup') {
+    drawPowerup();
+
+  } else if (gameState === 'dead') {
+    drawDead();
+
+  } else if (gameState === 'win') {
+    drawWin();
+
+  } else if (gameState === 'shop') {
+    drawShop();
   }
 
   applyCRT();
