@@ -1,945 +1,356 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>KIN 104L Platformer — v8 (Enemies + Points Shield, Bigger Banks)</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>VAULT RUN</title>
 <style>
-  :root{
-    --bg: #0b1020;
-    --card:#0f172a;
-    --text:#e5e7eb;
-    --muted:#9aa7bd;
-    --accent:#22c55e;
-    --accent2:#38bdf8;
-    --gold:#facc15;
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
   }
-  *{box-sizing:border-box}
-  body{ margin:0; background: linear-gradient(#0a0f1e,#0a0f1e); color:var(--text); font-family: system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,Noto Sans; overflow:hidden; }
-  header.toolbar{ position:fixed; top:0; left:0; right:0; height:64px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 12px; background:rgba(10,15,30,0.85); backdrop-filter: blur(8px); border-bottom:1px solid rgba(255,255,255,0.06); z-index:10; }
-  .toolbar .group{display:flex; align-items:center; gap:8px}
-  .toolbar label{font-size:13px; color:var(--muted)}
-  .toolbar select, .toolbar input[type="text"], .toolbar input[type="number"], .toolbar input[type="checkbox"]{ background:#0f172a;border:1px solid #22304d;border-radius:8px;color:var(--text); padding:6px 8px; font-size:14px; outline:none; }
-  .toolbar button{ background:linear-gradient(180deg,#1f2937,#101827); border:1px solid #2f3b59; color:#e2e8f0; border-radius:10px; padding:8px 12px; font-weight:600; cursor:pointer; }
-  .toolbar button:hover{border-color:#3f4b6a}
-  #hud{ position:fixed; left:12px; top:70px; z-index:6; display:flex; flex-direction:column; gap:6px; font-size:14px; color:#cbd5e1; }
-  .bar{width:220px; height:12px; background:#0f172a; border:1px solid #22304d; border-radius:8px; overflow:hidden}
-  .bar>div{height:100%; background: linear-gradient(90deg, var(--accent2), #2dd4bf)}
-  .tiny{font-size:12px; color:#9ca3af}
-  #mastery{ display:flex; gap:10px; margin-top:6px; }
-  .ring{ width:44px; height:44px; position:relative; }
-  .ring canvas{ width:44px; height:44px; }
-  .ring span{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; color:#cbd5e1; }
-  #keyhud{ font-size:13px; color:#eab308; }
-  #pointshud{ font-size:14px; color:var(--gold) }
-  #gamewrap{position:fixed; inset:64px 0 0 0}
-  canvas#game{display:block; width:100%; height:100%; background:#0b0f20}
-  /* Modal */
-  #modal{position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:20; padding:16px;}
-  #card{width:min(780px, 96vw); background:var(--card); border:1px solid #26324e; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.45); padding:18px; display:flex; flex-direction:column; gap:14px;}
-  #qtitle{font-size:16px; color:#d1d5db}
-  #qtext{font-size:18px; line-height:1.4}
-  .options{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-  .options button{padding:12px; border-radius:12px; border:1px solid #334155; background:#111827; color:#e5e7eb; cursor:pointer; text-align:left;}
-  .options button:hover{border-color:#475569}
-  .row{display:flex; gap:10px; align-items:center; justify-content:flex-end}
-  .hint{color:#a3b1c5; font-size:14px}
-  .ok{background:linear-gradient(180deg,#14532d,#052e16); border-color:#2c6c46}
-  .bad{background:linear-gradient(180deg,#3f1d1d,#2a1212); border-color:#7f1d1d}
-  #toast{position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:rgba(17,24,39,.92); border:1px solid #334155; color:#e2e8f0; padding:10px 14px; border-radius:10px; font-size:14px; display:none; z-index:30;}
-  /* Mobile controls */
-  #touch{position:fixed; inset:auto 0 0 0; height:130px; display:none; z-index:9; pointer-events:none}
-  .pad{display:flex; gap:12px; padding:12px; pointer-events:auto}
-  .btn{width:68px; height:68px; border-radius:50%; background:rgba(30,41,59,0.65); border:1px solid #334155; color:#e5e7eb; font-weight:700; display:flex; align-items:center; justify-content:center; user-select:none; touch-action:none;}
-  .btn:active{transform:scale(0.96)}
-  .leftpad{position:absolute; left:10px; bottom:10px}
-  .rightpad{position:absolute; right:10px; bottom:10px}
-  @media (max-width: 900px){ #touch{display:block} #hud{left:12px; top:68px; transform:scale(.95)} }
-  #error{position:fixed; top:74px; right:12px; background:#2b0f0f; color:#fecaca; border:1px solid #7f1d1d; padding:8px 12px; border-radius:8px; max-width:40ch; display:none; z-index:50; font-size:12px; white-space:pre-wrap}
+  canvas { display: block; image-rendering: pixelated; cursor: none; }
 </style>
 </head>
 <body>
-<header class="toolbar">
-  <div class="group"><strong>KIN 104L Platformer</strong></div>
-  <div class="group">
-    <label for="pack">Pack</label>
-    <select id="pack">
-      <option value="planes_axes">Planes & Axes</option>
-      <option value="muscle_actions">Muscle Actions</option>
-      <option value="vessels">Vessels</option>
-      <option value="gait">Gait</option>
-    </select>
-  </div>
-  <div class="group">
-    <label for="seed">Seed</label>
-    <input id="seed" type="text" value="UW-KIN" style="width:120px">
-    <button id="reseed">Reseed</button>
-    <button id="new">New Level</button>
-  </div>
-  <div class="group">
-    <label for="biome">Theme</label>
-    <select id="biome">
-      <option value="meadow">Meadow</option>
-      <option value="cavern">Cavern</option>
-      <option value="ruins">Ruins</option>
-    </select>
-  </div>
-  <div class="group">
-    <label for="length">Length</label>
-    <select id="length">
-      <option value="short">Short</option>
-      <option value="medium">Medium</option>
-      <option value="long" selected>Long</option>
-      <option value="epic">Epic</option>
-    </select>
-  </div>
-  <div class="group">
-    <label for="difficulty">Difficulty</label>
-    <select id="difficulty">
-      <option value="easy">Easy</option>
-      <option value="standard" selected>Standard</option>
-      <option value="hard">Hard</option>
-    </select>
-  </div>
-  <div class="group">
-    <label for="jump">Jump</label>
-    <input id="jump" type="number" min="500" max="900" value="680" style="width:80px">
-    <label for="grav">Gravity</label>
-    <input id="grav" type="number" min="1200" max="2200" value="1700" style="width:80px">
-  </div>
-  <div class="group">
-    <label class="tiny"><input id="debug" type="checkbox"> Show anchors</label>
-  </div>
-  <div class="group" style="margin-left:auto">
-    <button id="export">Export Progress</button>
-  </div>
-</header>
-
-<div id="hud">
-  <div>Lives: <span id="lives">3</span> <span class="tiny">(Campfire: 2/3 correct = +1)</span></div>
-  <div id="keyhud">Key: <span id="keyval">None</span></div>
-  <div id="pointshud">Points: <span id="points">0</span> <span class="tiny">(F = Shield, cost 3)</span></div>
-  <div>ATP-PCr</div>
-  <div class="bar"><div id="pcbar" style="width:100%"></div></div>
-  <div class="tiny">Move: ←/→ or A/D &nbsp; Jump: ↑/W/Space (double-jump) &nbsp; Dash: Shift/X &nbsp; Interact: E &nbsp; Shield: F</div>
-  <div id="mastery">
-    <div class="ring"><canvas width="44" height="44" data-pack="planes_axes"></canvas><span>Axes</span></div>
-    <div class="ring"><canvas width="44" height="44" data-pack="muscle_actions"></canvas><span>Muscle</span></div>
-    <div class="ring"><canvas width="44" height="44" data-pack="vessels"></canvas><span>Vessel</span></div>
-    <div class="ring"><canvas width="44" height="44" data-pack="gait"></canvas><span>Gait</span></div>
-  </div>
-</div>
-
-<div id="gamewrap"><canvas id="game" width="1280" height="720"></canvas></div>
-<div id="error"></div>
-
-<!-- Mobile touch controls -->
-<div id="touch">
-  <div class="leftpad pad">
-    <div class="btn" data-hold="Left">←</div>
-    <div class="btn" data-hold="Right">→</div>
-  </div>
-  <div class="rightpad pad">
-    <div class="btn" data-tap="Jump">⤒</div>
-    <div class="btn" data-hold="Dash">⇢</div>
-    <div class="btn" data-tap="Interact">E</div>
-    <div class="btn" data-tap="Shield">F</div>
-  </div>
-</div>
-
-<!-- Question Modal -->
-<div id="modal">
-  <div id="card">
-    <div id="qtitle">Quick Check</div>
-    <div id="qtext"></div>
-    <div class="options" id="opts"></div>
-    <div class="hint" id="hint" style="display:none"></div>
-    <div class="row"><button id="close">Close</button></div>
-  </div>
-</div>
-
-<div id="toast"></div>
-
+<canvas id="crt"></canvas>
 <script>
-/* ======= ERROR GUARD ======= */
-const errBox = document.getElementById('error');
-function showError(msg){ errBox.textContent = msg; errBox.style.display='block'; }
-window.onerror = function(msg, src, line, col, err){ showError(String(msg)); return false; };
+'use strict';
 
-/* ======= UTILITIES ======= */
-const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-const lerp=(a,b,t)=>a+(b-a)*t;
-function makeRNG(seed){ let h=0; for(let i=0;i<seed.length;i++){ h=(h*31 + seed.charCodeAt(i))>>>0; } return ()=>{ h = (h*1664525 + 1013904223)>>>0; return h/4294967296; }; }
-function randInt(rng,a,b){ return Math.floor(rng()*(b-a+1))+a; }
+// ─────────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────────
+const GW = 320, GH = 180;   // internal game resolution
+const TS = 16;               // tile size in pixels
 
-/* ======= QUESTION BANKS (expanded, with rationales) ======= */
-const QUESTION_BANK={
-  planes_axes:[
-    {id:"pa1", text:"Which plane divides the body into left and right halves?", options:["Frontal","Sagittal","Transverse","Oblique"], correct:1, hint:"Sagittal splits left/right.", rationale:"Sagittal splits body into left and right."},
-    {id:"pa2", text:"Jumping jacks primarily occur in which plane?", options:["Sagittal","Frontal","Transverse"], correct:1, hint:"Arms/legs away/toward midline.", rationale:"Abduction/adduction are in frontal plane."},
-    {id:"pa3", text:"Rotation (shaking 'no') occurs mostly around which axis?", options:["Longitudinal","Mediolateral","Anteroposterior"], correct:0, hint:"Spin like a top.", rationale:"Rotation around longitudinal axis."},
-    {id:"pa4", text:"A biceps curl is mainly in which plane?", options:["Transverse","Frontal","Sagittal"], correct:2, hint:"Forward/back motion.", rationale:"Elbow flexion in sagittal plane."},
-    {id:"pa5", text:"Shoulder internal/external rotation occurs mostly in which plane?", options:["Transverse","Frontal","Sagittal"], correct:0, hint:"Rotations around long axis.", rationale:"Internal/external rotation in transverse plane."},
-    {id:"pa6", text:"Abduction/adduction occurs about which axis?", options:["Anteroposterior","Mediolateral","Longitudinal"], correct:0, hint:"Front-to-back axis.", rationale:"Frontal plane moves about A-P axis."},
-    {id:"pa7", text:"Squats primarily occur in which plane?", options:["Sagittal","Frontal","Transverse"], correct:0, hint:"Flex/extend at hips/knees.", rationale:"Squat is sagittal plane."},
-    {id:"pa8", text:"Spinal rotation occurs mainly in the ___ plane.", options:["Transverse","Frontal","Sagittal"], correct:0, hint:"Twist left/right.", rationale:"Axial rotation is transverse plane."},
-    {id:"pa9", text:"Cartwheel is movement mostly in the ___ plane.", options:["Frontal","Sagittal","Transverse"], correct:0, hint:"Sideways movement.", rationale:"Cartwheel occurs in frontal plane."},
-    {id:"pa10", text:"Which axis corresponds to flexion/extension?", options:["Mediolateral","Longitudinal","Anteroposterior"], correct:0, hint:"Through hips side-to-side.", rationale:"Flex/extend about mediolateral axis."},
-    {id:"pa11", text:"Horizontal abduction at shoulder occurs in the ___ plane.", options:["Transverse","Frontal","Sagittal"], correct:0, hint:"Arms out at 90°.", rationale:"Horizontal moves occur in transverse plane."},
-    {id:"pa12", text:"Jump turn (360°) spins about the ___ axis.", options:["Longitudinal","Mediolateral","Anteroposterior"], correct:0, hint:"Head-to-toe spin.", rationale:"Full spin uses longitudinal axis."}
-  ],
-  muscle_actions:[
-    {id:"ma1", text:"Primary action of Tibialis Anterior?", options:["Plantarflexion","Dorsiflexion","Eversion","Knee flexion"], correct:1, hint:"Lifts forefoot.", rationale:"TA dorsiflexes ankle."},
-    {id:"ma2", text:"Gluteus Medius contributes primarily to:", options:["Hip adduction","Hip abduction","Hip extension"], correct:1, hint:"Single-leg stance.", rationale:"Abducts hip; stabilizes pelvis."},
-    {id:"ma3", text:"Gastrocnemius primarily does:", options:["Dorsiflexion","Plantarflexion","Eversion"], correct:1, hint:"Onto your toes.", rationale:"Plantarflexes the ankle."},
-    {id:"ma4", text:"Biceps Brachii acts to:", options:["Elbow extension","Elbow flexion","Pronation"], correct:1, hint:"Think curl.", rationale:"Flexes elbow; supinates."},
-    {id:"ma5", text:"Fibularis (Peroneus) Longus mainly:", options:["Inverts","Everts","Dorsiflexes"], correct:1, hint:"Lateral compartment.", rationale:"Everts the foot."},
-    {id:"ma6", text:"Rectus Femoris primarily:", options:["Knee flexion","Knee extension","Ankle plantarflexion"], correct:1, hint:"Quadriceps.", rationale:"Extends the knee."},
-    {id:"ma7", text:"Gluteus Maximus primary action:", options:["Hip extension","Hip flexion","Hip adduction"], correct:0, hint:"Powerful stair climb.", rationale:"Extends hip strongly."},
-    {id:"ma8", text:"Hamstrings as a group primarily:", options:["Knee extension","Knee flexion","Knee valgus"], correct:1, hint:"Heel to butt.", rationale:"Flex the knee; extend hip."},
-    {id:"ma9", text:"Serratus Anterior does:", options:["Scapular protraction","Scapular elevation","Scapular downward rotation"], correct:0, hint:"Punch forward.", rationale:"Protracts and upwardly rotates scapula."},
-    {id:"ma10", text:"Upper trapezius primarily:", options:["Scapular elevation","Elbow flexion","Hip abduction"], correct:0, hint:"Shrug.", rationale:"Elevates scapula."},
-    {id:"ma11", text:"Pectoralis Major main action:", options:["Shoulder abduction","Shoulder horizontal adduction","Shoulder external rotation"], correct:1, hint:"Hug.", rationale:"Horizontally adducts shoulder; also IR."},
-    {id:"ma12", text:"Deltoid (middle fibers) mainly:", options:["Shoulder abduction","Shoulder adduction","Elbow extension"], correct:0, hint:"Arms to the side.", rationale:"Abducts shoulder."}
-  ],
-  vessels:[
-    {id:"ve1", text:"The brachial artery typically bifurcates into:", options:["Radial & Ulnar","Femoral & Popliteal","Anterior & Posterior tibial","Dorsalis pedis & Plantar arch"], correct:0, hint:"Forearm vessels.", rationale:"Brachial splits into radial/ulnar."},
-    {id:"ve2", text:"The popliteal artery continues as:", options:["Anterior tibial & Posterior tibial","Radial & Ulnar","Femoral & Profunda femoris","Iliac & Femoral"], correct:0, hint:"Below knee.", rationale:"Branches into ant/post tibial."},
-    {id:"ve3", text:"Dorsalis pedis is a continuation of:", options:["Posterior tibial","Anterior tibial","Fibular (peroneal)","Popliteal"], correct:1, hint:"Front of ankle.", rationale:"Anterior tibial continues as dorsalis pedis."},
-    {id:"ve4", text:"External iliac becomes femoral after passing under:", options:["Inguinal ligament","Popliteal fossa","Adductor hiatus","Transverse ligament"], correct:0, hint:"Groin landmark.", rationale:"Becomes femoral under inguinal ligament."},
-    {id:"ve5", text:"Plantar arch supplied primarily by:", options:["Radial artery","Posterior tibial branches","Anterior tibial branches","Brachial artery"], correct:1, hint:"From posterior compartment.", rationale:"From posterior tibial branches."},
-    {id:"ve6", text:"Profunda femoris primarily supplies:", options:["Deep thigh (hamstrings)","Foot dorsum","Hand","Anterior forearm"], correct:0, hint:"Deep thigh.", rationale:"Supplies deep thigh musculature."},
-    {id:"ve7", text:"Which is a branch of the subclavian artery?", options:["Vertebral artery","Radial artery","Femoral artery"], correct:0, hint:"Neck to brain.", rationale:"Vertebral branches from subclavian."},
-    {id:"ve8", text:"The axillary artery becomes brachial at the:", options:["Teres major border","Antecubital fossa","Clavicle","Carpal tunnel"], correct:0, hint:"Inferior border landmark.", rationale:"At inferior border of teres major."},
-    {id:"ve9", text:"The fibular (peroneal) artery branches off the:", options:["Anterior tibial","Posterior tibial","Popliteal","Femoral"], correct:1, hint:"Posterior compartment branch.", rationale:"Fibular branches from posterior tibial."}
-  ],
-  gait:[
-    {id:"ga1", text:"Initial contact is also called:", options:["Toe-off","Heel strike","Mid-stance","Terminal swing"], correct:1, hint:"First touch.", rationale:"Initial contact ≈ heel strike."},
-    {id:"ga2", text:"Phase after mid-stance is:", options:["Terminal stance","Loading response","Initial swing","Pre-swing"], correct:0, hint:"After body over foot.", rationale:"Mid-stance → terminal stance."},
-    {id:"ga3", text:"Toe-off corresponds to:", options:["Pre-swing","Mid-stance","Loading response","Terminal swing"], correct:0, hint:"Before swing.", rationale:"Toe-off marks pre-swing."},
-    {id:"ga4", text:"During loading response the ankle mostly:", options:["Plantarflexes","Dorsiflexes","Inverts"], correct:0, hint:"Foot lowers.", rationale:"Controlled plantarflexion."},
-    {id:"ga5", text:"Max knee flexion occurs in:", options:["Mid-stance","Initial swing","Mid-swing","Terminal stance"], correct:2, hint:"Leg clears ground.", rationale:"Peak at mid-swing."},
-    {id:"ga6", text:"Gluteus medius is crucial during:", options:["Single-limb stance","Terminal swing","Initial contact"], correct:0, hint:"Pelvis level.", rationale:"Stabilizes pelvis on stance."},
-    {id:"ga7", text:"Quadriceps are most active during:", options:["Loading response","Mid-stance","Mid-swing"], correct:0, hint:"Controls knee bend.", rationale:"Eccentric to control knee flexion."},
-    {id:"ga8", text:"Ankle dorsiflexors prevent foot slap during:", options:["Loading response","Mid-stance","Terminal stance"], correct:0, hint:"Right after contact.", rationale:"Eccentric dorsiflexors prevent slap."},
-    {id:"ga9", text:"Hip flexors initiate:", options:["Initial swing","Mid-stance","Terminal stance"], correct:0, hint:"Swing begins.", rationale:"Iliopsoas initiates swing."}
-  ]
+// Phosphor-green palette (CRT monitor feel)
+const C = {
+  bg:        '#020c02',
+  dim:       '#071407',
+  tile:      '#0d3b0d',
+  tileHi:    '#1a5c1a',
+  tileShadow:'#051005',
+  platform:  '#1f6b1f',
+  platEdge:  '#2d962d',
+  player:    '#39ff14',
+  playerDim: '#1a7a00',
+  enemy:     '#ff4500',
+  enemyDim:  '#7a2000',
+  boss:      '#ff0066',
+  bossDim:   '#7a0033',
+  bullet:    '#ffe066',
+  coin:      '#ffd700',
+  coinGlow:  '#ffaa00',
+  powerup:   '#00ffff',
+  pwrGlow:   '#00aaaa',
+  hurt:      '#ff2222',
+  exit:      '#00ffcc',
+  exitGlow:  '#00ffcc',
+  text:      '#39ff14',
+  textDim:   '#1a5c1a',
+  textBright:'#ccffcc',
+  uiBg:      '#040d04',
+  uiBorder:  '#1a4a1a',
+  spike:     '#cc4400',
 };
-const PACK_LABEL={planes_axes:"Axes", muscle_actions:"Muscle", vessels:"Vessel", gait:"Gait"};
 
-/* ======= PROGRESS / MASTERY / POINTS ======= */
-const Progress={
-  perPack:{
-    planes_axes:{attempts:0, correct:0},
-    muscle_actions:{attempts:0, correct:0},
-    vessels:{attempts:0, correct:0},
-    gait:{attempts:0, correct:0}
+// ─────────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────────
+const rng = {
+  _s: Date.now() | 1,
+  next() {
+    this._s ^= this._s << 13;
+    this._s ^= this._s >> 17;
+    this._s ^= this._s << 5;
+    return (this._s >>> 0) / 4294967296;
   },
-  misses:[], // {id, pack, ts}
-  points:0,
-  log(pack, isCorrect, qid){
-    const s=this.perPack[pack]; if(s){ s.attempts++; if(isCorrect) s.correct++; } 
-    if(!isCorrect && qid){ this.misses.push({id:qid, pack, ts:Date.now()}); }
-    // points: +3 correct, +0 wrong
-    if(isCorrect){ this.addPoints(3, "Correct answer"); }
+  int(lo, hi) { return lo + Math.floor(this.next() * (hi - lo + 1)); },
+  pick(a)     { return a[this.int(0, a.length - 1)]; },
+  shuffle(a)  {
+    const r = [...a];
+    for (let i = r.length - 1; i > 0; i--) {
+      const j = this.int(0, i);
+      [r[i], r[j]] = [r[j], r[i]];
+    }
+    return r;
   },
-  addPoints(n, reason=""){ this.points=Math.max(0, this.points + n); document.getElementById("points").textContent=this.points; if(reason) toast("+"+n+" pts — "+reason); },
-  spend(n){ if(this.points>=n){ this.points-=n; document.getElementById("points").textContent=this.points; return true; } toast("Need "+n+" points"); return false; },
-  export(){
-    const blob=new Blob([JSON.stringify({ts:new Date().toISOString(), perPack:this.perPack, misses:this.misses.slice(-40), points:this.points}, null, 2)],{type:"application/json"});
-    const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`KIN104L_progress_${Date.now()}.json`; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); },0);
-  }
 };
 
-function updateRings(){
-  document.querySelectorAll("#mastery canvas").forEach(cv=>{
-    const pack=cv.dataset.pack; const s=Progress.perPack[pack]||{attempts:0,correct:0};
-    const m=s.attempts? s.correct/s.attempts : 0;
-    const ctx=cv.getContext('2d'); const r=20, cx=22, cy=22;
-    ctx.clearRect(0,0,cv.width,cv.height);
-    ctx.strokeStyle="#26324e"; ctx.lineWidth=6; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
-    ctx.strokeStyle="#38bdf8"; ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2, -Math.PI/2 + Math.PI*2*m); ctx.stroke();
-    ctx.globalAlpha=0.15; ctx.lineWidth=1; for(let i=0;i<4;i++){ ctx.beginPath(); ctx.arc(cx,cy,r, i*Math.PI/2, i*Math.PI/2+0.01); ctx.stroke(); } ctx.globalAlpha=1;
-  });
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const lerp  = (a, b, t)   => a + (b - a) * t;
+
+function overlaps(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-/* ======= PACK-AWARE QUESTION PICK (70% from recent misses) ======= */
-function pickQuestion(pack, rng=Math.random){
-  const arr=QUESTION_BANK[pack]; if(!arr||!arr.length) return null;
-  const missPool = Progress.misses.filter(m=>m.pack===pack).slice(-8);
-  const useMiss = missPool.length>0 && rng()<0.7;
-  if(useMiss){
-    const id = missPool[missPool.length-1 - Math.floor(rng()*missPool.length)].id;
-    const q = arr.find(z=>z.id===id);
-    if(q) return q;
-  }
-  return arr[(arr.length * rng())|0];
-}
+// ─────────────────────────────────────────────────────────────
+// INPUT
+// ─────────────────────────────────────────────────────────────
+const keys     = {};
+const pressed  = {};   // fires once on keydown
+const released = {};
 
-/* ======= GAME CORE VARS ======= */
-const TILE=32;
-let MAP=[]; // array of strings
-const solids = new Set(["#","="]);
-let stickyStrips=[]; // {x0,x1,row,active:true}
-let entities=[];     // all non-enemy entities
-let enemies=[];      // enemies only
-let spawn={x:3*TILE, y:7*TILE};
-let checkpoint={x:3*TILE, y:7*TILE};
-let levelIndex=1;
-let RNG = makeRNG("UW-KIN");
-let BIOME='meadow';
-let LENGTH='long';
-let DIFFICULTY='standard';
-let LEVEL_COLS=360;
-let bgLayers=null;
-let pedestalMeta=[];
-let particles=[]; // juice
-
-/* ======= PLAYER / PHYSICS ======= */
-let GRAV=1700, MOVE=260, JUMP=680, COYOTE_MS=110, JBUF_MS=140; let SPEED=1.0;
-const player={ x:spawn.x, y:spawn.y, w:20, h:28, vx:0, vy:0, onGround:false, coyote:0, facing:1, lives:3, pc:1, dashTime:0,
-  maxAirJumps:1, airJumps:1, jumpBuffer:0, key:null, shield:0, invuln:0 };
-document.querySelector("#lives").textContent=player.lives;
-function setKey(k){ player.key=k; document.querySelector("#keyval").textContent = k? (k.muscle+" ("+k.action+")") : "None"; }
-
-/* ======= CANVAS ======= */
-const canvas=document.querySelector("#game"); const ctx=canvas.getContext("2d");
-let DPR = Math.max(1, Math.floor(window.devicePixelRatio||1));
-function resize(){ const w = window.innerWidth; const h = window.innerHeight-64; canvas.width = Math.floor(w*DPR); canvas.height = Math.floor(h*DPR); canvas.style.width = w+"px"; canvas.style.height = h+"px"; }
-resize(); addEventListener("resize", resize);
-
-/* ======= INPUT ======= */
-const keys={Left:false, Right:false, Jump:false, Dash:false, Interact:false, Shield:false};
-const press={jump:false, interact:false, shield:false};
-addEventListener("keydown", e=>{
-  if(["ArrowLeft","KeyA"].includes(e.code)) keys.Left=true;
-  if(["ArrowRight","KeyD"].includes(e.code)) keys.Right=true;
-  if(["ArrowUp","KeyW","Space"].includes(e.code)){ if(!keys.Jump){ press.jump=true; } keys.Jump=true; }
-  if(["ShiftLeft","ShiftRight","KeyX"].includes(e.code)) keys.Dash=true;
-  if(["KeyE"].includes(e.code)){ if(!keys.Interact){ press.interact=true; } keys.Interact=true; }
-  if(["KeyF"].includes(e.code)){ if(!keys.Shield){ press.shield=true; } keys.Shield=true; }
+window.addEventListener('keydown', e => {
+  if (!keys[e.code]) pressed[e.code] = true;
+  keys[e.code] = true;
+  // Prevent arrow keys and space from scrolling
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))
+    e.preventDefault();
 });
-addEventListener("keyup", e=>{
-  if(["ArrowLeft","KeyA"].includes(e.code)) keys.Left=false;
-  if(["ArrowRight","KeyD"].includes(e.code)) keys.Right=false;
-  if(["ArrowUp","KeyW","Space"].includes(e.code)) keys.Jump=false;
-  if(["ShiftLeft","ShiftRight","KeyX"].includes(e.code)) keys.Dash=false;
-  if(["KeyE"].includes(e.code)) keys.Interact=false;
-  if(["KeyF"].includes(e.code)) keys.Shield=false;
+window.addEventListener('keyup', e => {
+  keys[e.code] = false;
+  released[e.code] = true;
 });
-// Touch
-(function setupTouch(){
-  const btns=document.querySelectorAll(".btn");
-  function setHold(name,val){ if(name==="Left") keys.Left=val; if(name==="Right") keys.Right=val; if(name==="Dash") keys.Dash=val; if(name==="Shield"){ if(val) press.shield=true; } }
-  btns.forEach(b=>{
-    const tap=b.dataset.tap, hold=b.dataset.hold;
-    function down(e){ e.preventDefault(); if(hold){ setHold(hold,true); } if(tap){ if(tap==="Jump"){ press.jump=true; keys.Jump=true; } if(tap==="Interact"){ press.interact=true; keys.Interact=true; } if(tap==="Shield"){ press.shield=true; } } }
-    function up(e){ e.preventDefault(); if(hold){ setHold(hold,false); } }
-    b.addEventListener("pointerdown",down); b.addEventListener("pointerup",up); b.addEventListener("pointercancel",up); b.addEventListener("pointerleave",up);
-  });
-})(); 
 
-/* ======= TILE HELPERS ======= */
-function tileAt(px,py){ const x=Math.floor(px/TILE), y=Math.floor(py/TILE); if(y<0 || y>=MAP.length || x<0 || x>=MAP[0].length) return "."; return MAP[y][x]; }
-function solidAt(px,py){ return solids.has(tileAt(px,py)); }
-function aabb(ax,ay,aw,ah,bx,by,bw,bh){ return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by; }
-function aabbSolid(ax,ay,aw,ah){ const points=[[ax,ay],[ax+aw,ay],[ax,ay+ah],[ax+aw,ay+ah]]; for(const [px,py] of points){ if(solidAt(px,py)) return true; } return false; }
-function setRectOnMap(x0,y0,w,h,ch){ const g = MAP.map(r=>r.split("")); for(let y=y0;y<y0+h;y++){ if(y<0||y>=g.length) continue; for(let x=x0;x<x0+w;x++){ if(x<0||x>=g[0].length) continue; g[y][x]=ch; } } MAP = g.map(r=>r.join("")); }
-
-/* ======= PARTICLES (JUICE) ======= */
-function spawnDust(x,y,dir=0){ for(let i=0;i<8;i++){ particles.push({x:x+(Math.random()*8-4), y:y+(Math.random()*4-2), vx:(Math.random()*60-30)+dir*30, vy:-Math.random()*60, life:0.4, type:'dust'}); } }
-function spawnSparkles(x,y){ for(let i=0;i<18;i++){ const ang = (i/18)*Math.PI*2; particles.push({x,y, vx:Math.cos(ang)*120, vy:Math.sin(ang)*120, life:0.6, type:'spark'}); } }
-
-/* ======= MOVEMENT / PHYSICS ======= */
-function moveAndCollide(dt){
-  // Horizontal
-  player.x += player.vx*dt;
-  if(aabbSolid(player.x, player.y, player.w, player.h)){
-    const step = Math.sign(player.vx)||1;
-    while(aabbSolid(player.x, player.y, player.w, player.h)) player.x -= step;
-    player.vx=0;
-  }
-  // Vertical
-  const wasOnGround = player.onGround;
-  player.y += player.vy*dt;
-  if(aabbSolid(player.x, player.y, player.w, player.h)){
-    const step = Math.sign(player.vy)||1;
-    while(aabbSolid(player.x, player.y, player.w, player.h)) player.y -= step;
-    if(step>0){
-      if(!player.onGround){ spawnDust(player.x+player.w/2, player.y+player.h, Math.sign(player.vx||1)); }
-      player.onGround=true; player.airJumps=player.maxAirJumps; player.coyote = COYOTE_MS;
-    }
-    player.vy=0;
-  } else { if(player.onGround===true){ player.onGround=false; } if(player.coyote>0) player.coyote -= dt*1000; }
+function down(...codes) { return codes.some(c => keys[c]); }
+function just(...codes) { return codes.some(c => pressed[c]); }
+function clearInput() {
+  for (const k in pressed)  delete pressed[k];
+  for (const k in released) delete released[k];
 }
 
-function doJump(strength=JUMP){ player.vy = -strength; player.onGround=false; player.coyote=0; player.jumpBuffer=0; }
+// ─────────────────────────────────────────────────────────────
+// CANVAS SETUP
+// ─────────────────────────────────────────────────────────────
+const crtCanvas = document.getElementById('crt');
+const crtCtx    = crtCanvas.getContext('2d');
 
-function inSticky(){
-  const px = player.x + player.w/2;
-  const footY = Math.floor((player.y+player.h)/TILE);
-  for(const s of stickyStrips){ if(!s.active) continue; if(footY===s.row && px >= s.x0*TILE && px <= s.x1*TILE) return true; }
-  return false;
+// Offscreen game canvas (low-res, all gameplay renders here)
+const gameCanvas = document.createElement('canvas');
+gameCanvas.width  = GW;
+gameCanvas.height = GH;
+const ctx = gameCanvas.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+
+let crtScale = 1;
+
+function resizeCRT() {
+  crtCanvas.width  = window.innerWidth;
+  crtCanvas.height = window.innerHeight;
+  crtScale = Math.min(window.innerWidth / GW, window.innerHeight / GH);
+  crtCtx.imageSmoothingEnabled = false;
+}
+window.addEventListener('resize', resizeCRT);
+resizeCRT();
+
+// ─────────────────────────────────────────────────────────────
+// DRAW HELPERS  (all draw to offscreen `ctx` at GW×GH)
+// ─────────────────────────────────────────────────────────────
+function fillRect(x, y, w, h, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w, h);
 }
 
-function updatePlayer(dt){
-  // Base run speed, slow in sticky
-  let run = MOVE * (inSticky()? 0.5 : 1.0);
-  const dir = (keys.Left?-1:0) + (keys.Right?1:0);
-  player.vx = lerp(player.vx, dir*run, 0.15);
-  if(dir!==0) player.facing = dir;
-
-  // Wall slide detection
-  const leftWall  = solidAt(player.x-1, player.y+player.h*0.5);
-  const rightWall = solidAt(player.x+player.w+1, player.y+player.h*0.5);
-  let sliding = false;
-  if(!player.onGround && (leftWall || rightWall) && player.vy > 0){ player.vy = Math.min(player.vy, 180); sliding = true; }
-
-  // Jump buffering
-  if(press.jump){ player.jumpBuffer = JBUF_MS/1000; } else if(player.jumpBuffer>0){ player.jumpBuffer -= dt; }
-
-  // Ground/coyote jump
-  if(player.jumpBuffer>0 && (player.onGround || player.coyote>0)){
-    doJump(JUMP);
-  } else if(press.jump && !player.onGround && player.airJumps>0){
-    doJump(JUMP*0.95); player.airJumps -= 1;
-  } else if(sliding && press.jump){
-    const dirW = leftWall? 1 : -1;
-    doJump(JUMP*0.95); player.vx = 360*dirW;
-  }
-
-  // Variable jump height
-  if(!keys.Jump && player.vy < -160){ player.vy *= 0.94; }
-
-  // Gravity
-  player.vy += GRAV*dt;
-
-  // Micro apex boost
-  if(player.vy > -40 && player.vy < 40 && keys.Jump){ player.vy -= 30*dt; }
-
-  // Dash (ATP-PCr)
-  if(keys.Dash && player.pc>0.35 && player.dashTime<=0){ player.dashTime = 0.18; player.pc = clamp(player.pc-0.35,0,1); }
-  if(player.dashTime>0){ player.dashTime-=dt; player.vx = player.facing * 520; player.vy = player.vy*0.3; } else { const regen = (dir===0 && Math.abs(player.vy)<20)? 0.35 : 0.18; player.pc = clamp(player.pc + regen*dt, 0, 1); }
-
-  // Points-based Shield
-  if(press.shield && player.shield<=0){
-    if(Progress.spend(3)){
-      player.shield = 2.2; // seconds
-      spawnSparkles(player.x+player.w/2, player.y+player.h/2);
-    }
-  }
-  if(player.shield>0) player.shield -= dt;
-  if(player.invuln>0) player.invuln -= dt;
-
-  // Move + collisions
-  moveAndCollide(dt);
-
-  // Death / Respawn if falling below world
-  const worldH = MAP.length*TILE;
-  if(MAP.length && player.y > worldH + 200){ takeDamage(); }
-
-  // UI + clear one-frame presses
-  document.querySelector("#pcbar").style.width = (player.pc*100).toFixed(1)+"%";
-  press.jump=false; press.interact=false; press.shield=false;
-}
-
-function takeDamage(){
-  if(player.invuln>0 || player.shield>0) return;
-  player.lives = Math.max(0, player.lives-1);
-  document.querySelector("#lives").textContent=player.lives;
-  player.invuln = 1.0;
-  respawn();
-}
-
-function respawn(){ player.x = checkpoint.x; player.y = checkpoint.y; player.vx=0; player.vy=0; player.coyote=0; player.airJumps=player.maxAirJumps; player.pc=1; player.dashTime=0; }
-
-/* ======= ENEMIES ======= */
-function spawnPatroller(x,y,dir=1){ enemies.push({type:"patroller", x, y, w:22, h:22, vx:dir*60, vy:0, speed:60}); }
-function spawnFloater(x,y,range=40,vertical=true){ enemies.push({type:"floater", x, y, w:22, h:22, t:0, range, vertical}); }
-
-function updateEnemies(dt){
-  for(const e of enemies){
-    if(e.type==="patroller"){
-      // simple AI: move, turn on wall or edge
-      e.x += e.vx*dt;
-      // wall collision
-      if(aabbSolid(e.x, e.y, e.w, e.h)){
-        const step = Math.sign(e.vx)||1;
-        while(aabbSolid(e.x, e.y, e.w, e.h)) e.x -= step;
-        e.vx *= -1;
-      }
-      // ground check & gravity
-      e.vy += 1200*dt; e.y += e.vy*dt;
-      // collide floor
-      if(aabbSolid(e.x, e.y, e.w, e.h)){
-        const step = Math.sign(e.vy)||1;
-        while(aabbSolid(e.x, e.y, e.w, e.h)) e.y -= step;
-        e.vy=0;
-      }
-      // edge detection: if no ground ahead, flip
-      const aheadX = e.x + (e.vx>0? e.w+1 : -1);
-      const groundY = e.y + e.h + 2;
-      if(!solidAt(aheadX, groundY)){ e.vx *= -1; }
-    } else if(e.type==="floater"){
-      e.t += dt;
-      if(e.vertical){ e.y += Math.sin(e.t*1.8)*20*dt; }
-      else { e.x += Math.sin(e.t*1.8)*20*dt; }
-    }
-    // Collision with player
-    if(aabb(player.x,player.y,player.w,player.h, e.x,e.y,e.w,e.h)){
-      if(player.shield>0){ // stun enemy back a bit
-        if(e.vx!==undefined) e.vx *= -1;
-        spawnSparkles(e.x+e.w/2, e.y+e.h/2);
-      } else {
-        takeDamage();
-      }
-    }
-  }
-}
-
-/* ======= CAMERA ======= */
-const cam={x:0,y:0};
-function updateCam(dt){
-  if(!MAP.length) return;
-  const viewW = canvas.width/DPR, viewH = canvas.height/DPR;
-  const look = clamp(player.vx*0.3, -140, 140);
-  const targetX = player.x + look - viewW*0.4;
-  const targetY = player.y - viewH*0.55;
-  cam.x = lerp(cam.x, targetX, 0.12);
-  cam.y = lerp(cam.y, targetY, 0.12);
-  cam.x = clamp(cam.x, 0, MAP[0].length*TILE - viewW);
-  cam.y = clamp(cam.y, 0, MAP.length*TILE - viewH);
-}
-
-/* ======= BIOMES / PALETTES ======= */
-const PALETTES={
-  meadow:{ sky1:"#0b1224", sky2:"#0e1a3c", hillFar:"#0b1632", hillNear:"#122049", cloud:"#d9e1f2", tile:"#3b4b61", tileTop:"#52627a", fg:"#0e1726" },
-  cavern:{ sky1:"#060611", sky2:"#0a0a18", hillFar:"#0b0f24", hillNear:"#14173a", cloud:"#8581a8", tile:"#3b3b5c", tileTop:"#52527a", fg:"#0b0d1a" },
-  ruins:{  sky1:"#0d1018", sky2:"#141a2b", hillFar:"#1a2230", hillNear:"#263448", cloud:"#b0b6bf", tile:"#40484f", tileTop:"#6b7280", fg:"#101826" }
-};
-function applyBiome(b){ const p=PALETTES[b]||PALETTES.meadow; document.body.style.background = `linear-gradient(${p.sky1}, ${p.sky1})`; }
-
-/* ======= BACKGROUND ======= */
-function buildBackground(cols, rows){
-  const layers={ farMount:[], nearMount:[], clouds:[], fore:[] };
-  for(let i=0;i<Math.ceil(cols/14);i++){ layers.farMount.push({x: i*14*TILE + (RNG()*TILE*4|0), y: 260 + (Math.sin(i*0.4)*30|0), r: 140 + (RNG()*60|0)}); }
-  for(let i=0;i<Math.ceil(cols/10);i++){ layers.nearMount.push({x: i*10*TILE + (RNG()*TILE*3|0), y: 320 + (Math.sin(i*0.6)*25|0), w: 200 + (RNG()*80|0), h: 120+(RNG()*60|0)}); }
-  for(let i=0;i<Math.ceil(cols/8);i++){ layers.clouds.push({x: i*8*TILE + (RNG()*TILE*4|0), y: 80 + (RNG()*120|0), w: 120+(RNG()*140|0), h: 24+(RNG()*18|0), speed: 5+RNG()*10}); }
-  for(let i=0;i<Math.ceil(cols/6);i++){ layers.fore.push({x:i*6*TILE + (RNG()*TILE*3|0), y: (canvas.height/Math.max(DPR,1)) - 40 + (Math.sin(i)*6|0), h: 30+(RNG()*12|0)}); }
-  return layers;
-}
-function drawBackground(time){
-  if(!bgLayers){ return; }
-  const p=PALETTES[BIOME]||PALETTES.meadow; const viewW=canvas.width/Math.max(DPR,1), viewH=canvas.height/Math.max(DPR,1);
-  const grad=ctx.createLinearGradient(0,0,0,viewH); grad.addColorStop(0,p.sky1); grad.addColorStop(1,p.sky2); ctx.fillStyle=grad; ctx.fillRect(0,0,viewW,viewH);
-  ctx.save(); ctx.translate(-cam.x*0.10, -cam.y*0.05); ctx.fillStyle=p.hillFar; for(const m of bgLayers.farMount){ ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill(); } ctx.restore();
-  ctx.save(); ctx.translate(-cam.x*0.20, -cam.y*0.10); ctx.fillStyle=p.hillNear; for(const m of bgLayers.nearMount){ ctx.fillRect(m.x, m.y, m.w, m.h); } ctx.restore();
-  ctx.save(); ctx.translate(-cam.x*0.25, -cam.y*0.15); ctx.fillStyle=p.cloud; for(const c of bgLayers.clouds){ const x = c.x + (time*100)% (LEVEL_COLS*TILE); const r=Math.min(c.h/2, 16); ctx.beginPath(); ctx.moveTo(x, c.y); ctx.arc(x, c.y, r, Math.PI/2, -Math.PI/2); ctx.arc(x+c.w, c.y, r, -Math.PI/2, Math.PI/2); ctx.closePath(); ctx.fill(); } ctx.restore();
-  ctx.save(); ctx.translate(-cam.x*0.5, -cam.y*0.2); ctx.fillStyle=p.fg; for(const f of bgLayers.fore){ ctx.fillRect(f.x, f.y-f.h, 4, f.h); ctx.fillRect(f.x+8, f.y-(f.h*0.8), 3, f.h*0.8); } ctx.restore();
-}
-
-/* ======= TILE RENDER (cull by camera) ======= */
-function drawTile(x,y,ch){
-  const p=PALETTES[BIOME]||PALETTES.meadow;
-  if(ch==="="||ch==="#"){
-    ctx.fillStyle=p.tile; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
-    ctx.fillStyle=p.tileTop; ctx.fillRect(x*TILE,y*TILE,TILE,6);
-    ctx.fillStyle="rgba(0,0,0,.25)"; ctx.fillRect(x*TILE+TILE-3,y*TILE,3,TILE);
-  }
-}
-function drawWorld(){
-  if(!MAP.length) return;
-  const minX = Math.max(0, Math.floor(cam.x/TILE)-2), maxX = Math.min(MAP[0].length, Math.ceil((cam.x+canvas.width/DPR)/TILE)+2);
-  const minY = Math.max(0, Math.floor(cam.y/TILE)-2), maxY = Math.min(MAP.length, Math.ceil((cam.y+canvas.height/DPR)/TILE)+2);
-  for(let y=minY;y<maxY;y++){ for(let x=minX;x<maxX;x++){ drawTile(x,y, MAP[y][x]); } }
-  // Sticky overlays
-  ctx.save(); ctx.translate(-cam.x, -cam.y); ctx.globalAlpha=0.22; ctx.fillStyle="#eab308";
-  for(const s of stickyStrips){ if(!s.active) continue; ctx.fillRect(s.x0*TILE, s.row*TILE, (s.x1-s.x0+1)*TILE, 6); }
-  ctx.globalAlpha=1; ctx.restore();
-}
-
-/* ======= ENTITIES / INTERACTIONS ======= */
-function near(a,b,dist=28){ return Math.hypot(a.x+10-b.x, a.y+14-b.y) < dist; }
-
-function handleInteractions(){
-  if(!entities.length) return;
-  // Muscle pedestals
-  for(const ped of entities.filter(e=>e.type==='pedestal')){
-    if(!ped.taken && near(player,ped,32) && (press.interact||keys.Interact)){
-      press.interact=false; setKey({muscle:ped.muscle, action:ped.action}); ped.taken=true; toast("Picked key: "+ped.muscle+" → "+ped.action); Progress.addPoints(2,"Found pedestal");
-    }
-  }
-  // Axis lever
-  const axis=entities.find(e=>e.type==="axis" && !e.done);
-  if(axis && near(player,axis,36) && (press.interact || keys.Interact)){
-    press.interact=false;
-    const q = pickQuestion("planes_axes", RNG);
-    askQuestion(q, ok=>{
-      Progress.log("planes_axes", ok, q.id);
-      updateRings();
-      if(ok){ const tx = Math.floor(axis.x/TILE) + 2, ty = Math.floor(axis.y/TILE) + 1; setRectOnMap(tx, ty, 5, 1, '#'); axis.done=true; toast("Correct axis! Bridge extended."); }
-      else { toast(q.rationale || "Review axis–plane relationship."); }
-    });
-  }
-  // Vessel bridge
-  const ves=entities.find(e=>e.type==="vessel" && !e.done);
-  if(ves && near(player,ves,36) && (press.interact || keys.Interact)){
-    press.interact=false;
-    const q = pickQuestion("vessels", RNG);
-    askQuestion(q, ok=>{
-      Progress.log("vessels", ok, q.id);
-      updateRings();
-      if(ok){ const tx = Math.floor(ves.x/TILE) + 2, ty = Math.floor(ves.y/TILE) + 1; setRectOnMap(tx, ty, 5, 1, '#'); ves.done=true; toast("Correct vessel! Bridge constructed."); }
-      else { toast(q.rationale || "Think branching and supply."); }
-    });
-  }
-  // Gait strip
-  const gait=entities.find(e=>e.type==="gait" && !e.cleared);
-  if(gait && near(player,gait,40) && (press.interact||keys.Interact)){
-    press.interact=false;
-    const q = pickQuestion("gait", RNG);
-    askQuestion(q, ok=>{
-      Progress.log("gait", ok, q.id);
-      updateRings();
-      if(ok){ for(const s of stickyStrips){ if(s.tag===gait.tag) s.active=false; } gait.cleared=true; toast("Sticky floor cleared!"); }
-      else { toast(q.rationale || "Recall gait phases order and actions."); }
-    });
-  }
-  // Orbs
-  for(const orb of entities.filter(e=>e.type==="orb" && !e.taken)){
-    if(near(player,orb,26)){ orb.taken=true; Progress.addPoints(1,"Collected orb"); }
-  }
-  // Portal
-  const portal=entities.find(e=>e.type==="portal"]);
-  if(portal && near(player,{x:portal.x, y:portal.y+TILE/2}) && (press.interact || keys.Interact)){
-    press.interact=false;
-    const q = pickQuestion("planes_axes", RNG);
-    askQuestion(q, ok=>{
-      Progress.log("planes_axes", ok, q.id);
-      updateRings();
-      if(ok){ portal.open=true; checkpoint={x: portal.x+3*TILE, y: portal.y}; toast("Portal stabilized."); spawnSparkles(portal.x, portal.y); }
-      else { toast(q.rationale || "Portal needs the correct concept."); }
-    });
-  }
-  // Block passage at portal if closed
-  const portal2=entities.find(e=>e.type==="portal");
-  if(portal2 && !portal2.open && player.x+player.w > portal2.gateX-2 && player.y+player.h > portal2.y && player.y < portal2.y+TILE){
-    player.x = portal2.gateX - player.w - 2; player.vx=0;
-  }
-  // Final door (Muscle–Action Gate)
-  const door=entities.find(e=>e.type==="door");
-  if(door && near(player,{x:door.x, y:door.y+TILE/2}) && (press.interact || keys.Interact)){
-    press.interact=false;
-    const key=player.key;
-    if(key && key.action===door.requiresAction){
-      door.open=true; toast("Gate recognizes "+key.muscle+"! Door unlocked."); spawnSparkles(door.x, door.y); Progress.addPoints(2,"Used matching key");
-    } else {
-      const q = pickQuestion("muscle_actions", RNG);
-      askQuestion(q, ok=>{
-        Progress.log("muscle_actions", ok, q.id);
-        updateRings();
-        if(ok){ door.open=true; toast("Knowledge override! Door unlocked."); Progress.addPoints(2,"Opened by knowledge"); }
-        else { toast(q.rationale || "Match muscles to their primary actions."); }
-      });
-    }
-  }
-  // Door collision if closed
-  if(door && !door.open && player.x+player.w > door.x-14 && player.x < door.x+14 && player.y+player.h > door.y && player.y < door.y+TILE){
-    if(player.facing>0) player.x = door.x-14 - player.w - 1; else player.x = door.x+14 + 1; player.vx=0;
-  }
-  // Campfire review
-  const camp=entities.find(e=>e.type==="camp");
-  if(camp && near(player,camp,36) && (press.interact || keys.Interact)){
-    press.interact=false; campfireReview();
-  }
-}
-
-/* ======= QUESTIONS UI ======= */
-const modal=document.querySelector("#modal"); const qtext=document.querySelector("#qtext"); const opts=document.querySelector("#opts"); const hint=document.querySelector("#hint"); const qtitle=document.querySelector("#qtitle"); document.querySelector("#close").addEventListener("click",()=>{ modal.style.display="none"; });
-function askQuestion(q, onDone){
-  if(!q){ onDone(true); return; }
-  qtitle.textContent = "Quick Check";
-  qtext.textContent = q.text;
-  hint.style.display="none"; opts.innerHTML="";
-  q.options.forEach((opt, i)=>{
-    const b=document.createElement("button"); b.textContent=opt;
-    b.addEventListener("click",()=>{
-      const correct = i===q.correct;
-      if(correct){ b.classList.add("ok"); setTimeout(()=>{ modal.style.display="none"; onDone(true); }, 160); }
-      else { b.classList.add("bad"); hint.textContent="Why: "+(q.rationale||q.hint||"Review this concept."); hint.style.display="block"; }
-    });
-    opts.appendChild(b);
-  });
-  modal.style.display="flex";
-}
-function toast(msg, ms=1500){ const t=document.querySelector("#toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast._t); toast._t=setTimeout(()=>{ t.style.display="none"; }, ms); }
-
-function campfireReview(){ const count=3; let asked=0, corr=0; function askNext(){ if(asked>=count){ if(corr>=2){ player.lives++; document.querySelector("#lives").textContent=player.lives; toast("Bonus life earned!"); } else toast("Keep practising. "+corr+"/"+count+" correct."); return; } asked++; const pack=document.querySelector("#pack").value; const q = pickQuestion(pack, RNG); qtitle.textContent = "Campfire Review ("+asked+"/"+count+")"; askQuestion(q, ok=>{ Progress.log(pack, ok, q.id); updateRings(); if(ok) corr++; askNext(); }); } askNext(); }
-
-/* ======= DOUBLE-CLICK QUICK CHECK ======= */
-canvas.addEventListener("dblclick", ()=>{ const pack=document.querySelector("#pack").value; const q=pickQuestion(pack, RNG); askQuestion(q, ok=>{ Progress.log(pack, ok, q.id); updateRings(); if(ok){ player.pc=1; toast("Dash refilled!"); } }); });
-
-/* ======= EXPORT ======= */
-document.querySelector("#export").addEventListener("click",()=>Progress.export());
-
-/* ======= CONTROLS ======= */
-document.querySelector("#reseed").addEventListener("click", ()=>reseedRNG(true));
-document.querySelector("#pack").addEventListener("change", e=>toast("Active pack: "+(e.target.selectedOptions[0].textContent||e.target.value)));
-document.querySelector("#new").addEventListener("click", ()=>{ levelIndex++; toast("New level: "+levelIndex); reseedRNG(true); });
-document.querySelector("#biome").addEventListener("change", e=>{ BIOME = e.target.value; applyBiome(BIOME); reseedRNG(true); });
-document.querySelector("#length").addEventListener("change", e=>{ LENGTH = e.target.value; LEVEL_COLS = (LENGTH==='short'? 200 : LENGTH==='medium'? 280 : LENGTH==='long'? 360 : 460); reseedRNG(true); });
-document.querySelector("#difficulty").addEventListener("change", e=>{ DIFFICULTY = e.target.value; toast("Difficulty: "+DIFFICULTY); reseedRNG(true); });
-document.querySelector("#jump").addEventListener("change", e=>{ JUMP = clamp(parseFloat(e.target.value)||680, 500, 900); toast("Jump: " + Math.round(JUMP)); });
-document.querySelector("#grav").addEventListener("change", e=>{ GRAV = clamp(parseFloat(e.target.value)||1700, 1200, 2200); toast("Gravity: " + Math.round(GRAV)); });
-
-/* ======= GENERATOR 2.0 ======= */
-let MAX_STEP_UP=4, MAX_STEP_DOWN=5, MAX_GAP=10;
-const DIFF = {
-  easy:     { MAX_STEP_UP:3, MAX_STEP_DOWN:4, MAX_GAP:8,  weights:{island:0.45, bridge:0.35, stairs:0.15, axis:0.02, vessel:0.02, gait:0.01, pedestal:0.0}, enemies: {patrol:0.10, float:0.06}, orbs: 24 },
-  standard: { MAX_STEP_UP:4, MAX_STEP_DOWN:5, MAX_GAP:10, weights:{island:0.35, bridge:0.30, stairs:0.18, axis:0.06, vessel:0.06, gait:0.03, pedestal:0.02}, enemies: {patrol:0.15, float:0.10}, orbs: 28 },
-  hard:     { MAX_STEP_UP:4, MAX_STEP_DOWN:6, MAX_GAP:12, weights:{island:0.30, bridge:0.25, stairs:0.20, axis:0.08, vessel:0.08, gait:0.05, pedestal:0.04}, enemies: {patrol:0.20, float:0.14}, orbs: 34 }
-};
-function applyDiff(){ const d=DIFF[DIFFICULTY]; MAX_STEP_UP=d.MAX_STEP_UP; MAX_STEP_DOWN=d.MAX_STEP_DOWN; MAX_GAP=d.MAX_GAP; }
-
-function placeRect(grid, x0,y0,w,h,char){ for(let y=y0;y<y0+h;y++){ if(y<0 || y>=grid.length) continue; for(let x=x0;x<x0+w;x++){ if(x<0 || x>=grid[0].length) continue; grid[y][x]=char; } } }
-function topSurfaceY(grid, col){ for(let y=0;y<grid.length;y++){ const isSolid = (grid[y][col]==="#" || grid[y][col]==="="); const above = (y>0? grid[y-1][col] : "."); if(isSolid && above==="."){ return y-1; } } return grid.length-4; }
-
-function makeIsland(grid, cx, srow, w){ placeRect(grid, cx-Math.floor(w/2), srow+1, w, 1, '#'); }
-function makeStairs(grid, x0, srow, steps, dir){ for(let i=0;i<steps;i++){ placeRect(grid, x0 + dir*i*3, srow - i + 1, 3, 1, '#'); } }
-function makeBridge(grid, x0, x1, srow){ const w = Math.max(3, x1-x0); placeRect(grid, x0, srow+1, w, 1, '#'); }
-
-// CHUNKS (including learning rooms)
-function chunk_island(g, col, srow, rng){ const w=4+(rng()*3|0); makeIsland(g, col, srow, w); return {col: col+w+2, srow}; }
-function chunk_bridge(g, col, srow, rng){ const w=5+(rng()*6|0); makeBridge(g, col-2, col-2+w, srow); return {col: col+w+2, srow}; }
-function chunk_stairs(g, col, srow, rng){ const steps=2+(rng()*3|0); makeStairs(g, col-3, srow, steps, 1); return {col: col+steps*3+2, srow:srow-(steps-1)}; }
-function chunk_axis(g, col, srow, rng){ placeRect(g, col, srow+1, 3, 1, '#'); const gap = 3 + (rng()*2|0); const nx = col + 3 + gap; placeRect(g, nx, srow+1, 4, 1, '#'); g[srow][col+1] = 'A'; return {col: nx+5, srow}; }
-function chunk_vessel(g, col, srow, rng){ placeRect(g, col, srow+1, 3, 1, '#'); const gap = 3 + (rng()*2|0); const nx = col + 3 + gap; placeRect(g, nx, srow+1, 4, 1, '#'); g[srow][col+1] = 'V'; return {col: nx+5, srow}; }
-function chunk_gait(g, col, srow, rng){ placeRect(g, col, srow+1, 6, 1, '#'); g[srow][col+2] = 'Z'; return {col: col+8, srow}; }
-function chunk_pedestal(g, col, srow, rng){ placeRect(g, col, srow+1, 3, 1, '#'); g[srow][col+1] = 'M'; return {col: col+5, srow}; }
-
-function chooseChunk(progress, rng){
-  const w = DIFF[DIFFICULTY].weights;
-  let weights = {...w};
-  if(progress<0.3){ weights.axis*=0.5; weights.vessel*=0.5; weights.gait*=0.5; }
-  else if(progress>0.7){ weights.axis*=1.2; weights.vessel*=1.2; weights.gait*=1.2; }
-  const entries = Object.entries(weights);
-  const sum = entries.reduce((a,[k,v])=>a+v,0);
-  let r=rng()*sum;
-  for(const [k,v] of entries){ if((r-=v)<=0) return k; }
-  return "island";
-}
-
-function buildAnchorPath(grid, startCol, endCol){
-  const rows=grid.length, cols=grid[0].length;
-  const anchors=[];
-  let srow = topSurfaceY(grid, startCol);
-  let col = startCol;
-  anchors.push({col, srow});
-  while(col < endCol){
-    const stepX = 7 + Math.floor(RNG()*9);
-    const progress = (col-startCol)/(endCol-startCol);
-    let dy=0; const r = RNG();
-    if(progress<0.35){ dy = (r<0.55)? -1 : (r<0.8? 0 : +1); }
-    else if(progress<0.75){ dy = (r<0.6)? 0 : (r<0.8? -1 : +1); }
-    else { dy = (r<0.55)? 0 : (r<0.75? +1 : -1); }
-    let nextS = clamp(srow + dy, 3, rows - 4);
-    if(srow - nextS > MAX_STEP_UP) nextS = srow - MAX_STEP_UP;
-    if(nextS - srow > MAX_STEP_DOWN) nextS = srow + MAX_STEP_DOWN;
-    const cx = clamp(col + stepX + Math.floor(RNG()*3)-1, 3, cols-4);
-    const name = chooseChunk(progress, RNG);
-    let adv;
-    switch(name){
-      case "bridge": adv = chunk_bridge(grid, cx, nextS, RNG); break;
-      case "stairs": adv = chunk_stairs(grid, cx, nextS, RNG); break;
-      case "axis":   adv = chunk_axis(grid, cx, nextS, RNG); break;
-      case "vessel": adv = chunk_vessel(grid, cx, nextS, RNG); break;
-      case "gait":   adv = chunk_gait(grid, cx, nextS, RNG); break;
-      case "pedestal": adv = chunk_pedestal(grid, cx, nextS, RNG); break;
-      default:       adv = chunk_island(grid, cx, nextS, RNG); break;
-    }
-    anchors.push({col: cx, srow: nextS});
-    anchors.push({col: adv.col, srow: adv.srow});
-    const prev = anchors[anchors.length-3];
-    const dx = Math.abs(adv.col - prev.col), dyabs = Math.abs(adv.srow - prev.srow);
-    if(dx > MAX_GAP){
-      const n = Math.ceil(dx / MAX_GAP);
-      for(let k=1;k<n;k++){
-        const ix = Math.floor( lerp(prev.col, adv.col, k/n) );
-        const iy = Math.floor( lerp(prev.srow, adv.srow, k/n) );
-        makeIsland(grid, ix, iy, 3);
-        anchors.push({col:ix, srow:iy});
-      }
-    }
-    if(dyabs>MAX_STEP_UP){
-      const midS = prev.srow - Math.sign(prev.srow-adv.srow)*Math.min(2, Math.floor(MAX_STEP_UP/2));
-      const midX = Math.floor((prev.col + adv.col)/2);
-      makeIsland(grid, midX, midS, 3);
-      anchors.push({col:midX, srow:midS});
-    }
-    col = adv.col; srow = adv.srow;
-  }
-  anchors.sort((a,b)=>a.col-b.col);
-  return anchors;
-}
-
-const MUSCLE_KEYS=[
-  {muscle:"Tibialis Anterior", action:"Dorsiflexion"},
-  {muscle:"Gastrocnemius", action:"Plantarflexion"},
-  {muscle:"Gluteus Medius", action:"Hip abduction"},
-  {muscle:"Biceps Brachii", action:"Elbow flexion"},
-  {muscle:"Gluteus Maximus", action:"Hip extension"}
-];
-const ACTIONS=[...new Set(MUSCLE_KEYS.map(k=>k.action))];
-
-function rebuildEntitiesFromMap(g, anchors){
-  entities=[]; stickyStrips=[]; pedestalMeta=[]; enemies=[];
-  spawn={x:2*TILE, y:(g.length-6)*TILE}; checkpoint={...spawn};
-  if(anchors.length){ const s=anchors[0]; spawn = {x: s.col*TILE, y: s.srow*TILE}; checkpoint = {...spawn}; }
-  function placeMarker(ch, anchorIndex){ const a = anchors[Math.min(anchors.length-1, Math.max(0, anchorIndex))]; if(!a) return; const y = a.srow; const x = a.col; g[y][x] = ch; }
-
-  const idxP = Math.max(1, Math.floor(anchors.length*0.25));
-  const idxG = Math.max(idxP+3, Math.floor(anchors.length*0.92));
-  const idxC = Math.max(1, Math.floor(anchors.length*0.10));
-  placeMarker('P', idxP); // portal
-  placeMarker('S', 0);    // start
-  placeMarker('C', idxC); // camp
-  placeMarker('G', idxG); // door
-
-  // Place pedestals (3) with at least one matching the door's required action
-  const requiresAction = ACTIONS[(ACTIONS.length*RNG())|0];
-  const pedAnchors=[ Math.floor(anchors.length*0.35), Math.floor(anchors.length*0.5), Math.floor(anchors.length*0.65) ];
-  const matchingMuscles = MUSCLE_KEYS.filter(k=>k.action===requiresAction);
-  const must = matchingMuscles[(matchingMuscles.length*RNG())|0] || MUSCLE_KEYS[0];
-  const pedMuscles=[must];
-  while(pedMuscles.length<3){ const k=MUSCLE_KEYS[(MUSCLE_KEYS.length*RNG())|0]; if(!pedMuscles.includes(k)) pedMuscles.push(k); }
-  for(let i=0;i<3;i++){ const a = anchors[Math.min(anchors.length-1, Math.max(0,pedAnchors[i]))]; if(!a) continue; g[a.srow][a.col] = 'M'; pedestalMeta.push({x:a.col, y:a.srow, muscle: pedMuscles[i].muscle, action: pedMuscles[i].action}); }
-
-  // Convert to strings
-  MAP = g.map(row=>row.join(''));
-
-  // Entities by tile scan
-  for(let y=0;y<g.length;y++){
-    for(let x=0;x<g[0].length;x++){
-      const ch=g[y][x];
-      if(ch==="P") entities.push({type:"portal", x:x*TILE+TILE/2, y:y*TILE, open:false, gateX:(x+1)*TILE-6});
-      if(ch==="G") entities.push({type:"door", x:x*TILE+TILE/2, y:y*TILE, open:false, requiresAction:requiresAction});
-      if(ch==="C") entities.push({type:"camp", x:x*TILE+16, y:y*TILE-16});
-      if(ch==="A") entities.push({type:"axis", x:x*TILE+16, y:y*TILE, done:false});
-      if(ch==="V") entities.push({type:"vessel", x:x*TILE+16, y:y*TILE, done:false});
-      if(ch==="Z"){ const tag = "gait_"+x+"_"+y; stickyStrips.push({x0:x-2, x1:x+6, row:y+1, active:true, tag}); entities.push({type:"gait", x:x*TILE+16, y:y*TILE, tag, cleared:false}); }
-      if(ch==="M"){ const meta = pedestalMeta.find(p=>p.x===x && p.y===y) || MUSCLE_KEYS[(MUSCLE_KEYS.length*Math.random())|0]; entities.push({type:"pedestal", x:x*TILE+16, y:y*TILE, muscle:meta.muscle, action:meta.action, taken:false}); }
-    }
-  }
-
-  // Place collectible orbs along anchors
-  const orbsCount = DIFF[DIFFICULTY].orbs;
-  for(let i=0;i<orbsCount;i++){
-    const a = anchors[ (anchors.length * RNG())|0 ];
-    if(!a) continue;
-    const ox = a.col + randInt(RNG,-3,3);
-    const oy = Math.max(3, a.srow - randInt(RNG,0,2));
-    entities.push({type:"orb", x:ox*TILE+16, y:oy*TILE, taken:false});
-  }
-
-  // Spawn enemies near later anchors
-  for(let i=0;i<anchors.length;i++){
-    const prog = i/anchors.length;
-    if(prog<0.2) continue;
-    if(RNG() < DIFF[DIFFICULTY].enemies.patrol){
-      const a=anchors[i]; spawnPatroller(a.col*TILE+8, a.srow*TILE+4, RNG()<0.5?-1:1);
-    }
-    if(RNG() < DIFF[DIFFICULTY].enemies.float){
-      const a=anchors[i]; spawnFloater(a.col*TILE+16, (a.srow-3)*TILE, 40 + RNG()*40, RNG()<0.5);
-    }
-  }
-
-  // Debug anchors
-  anchors.forEach(a=>entities.push({type:"anchor", x:a.col*TILE+16, y:a.srow*TILE+16}));
-}
-
-function buildLevel(){
-  try{
-    const cols = LEVEL_COLS, rows = 24;
-    applyDiff();
-    const grid = Array.from({length:rows},()=>Array.from({length:cols},()=>'.'));
-    // Base ground
-    for(let x=0;x<cols;x++){ grid[rows-1][x]='='; grid[rows-2][x]='='; }
-    // Ground gaps
-    for(let x=12; x<cols-12; x+= (10 + (RNG()*16|0))){ if(RNG()<0.22){ const gap = 2 + (RNG()*4|0); for(let k=0;k<gap;k++){ grid[rows-1][x+k]='.'; grid[rows-2][x+k]='.'; } } }
-    const {anchors} = (function(){ return {anchors: buildAnchorPath(grid, 2, cols-6)}; })();
-    rebuildEntitiesFromMap(grid, anchors);
-    bgLayers = buildBackground(cols, rows);
-    player.x = spawn.x; player.y = spawn.y; player.vx=0; player.vy=0;
-    player.onGround=false; player.coyote=0; player.airJumps=player.maxAirJumps; player.pc=1; player.invuln=0; player.shield=0; setKey(null);
-  } catch(err){ showError("BuildLevel error: " + (err && err.message ? err.message : String(err))); }
-}
-
-/* ======= INIT & RESEED ======= */
-function reseedRNG(showToast){
-  const s=document.querySelector("#seed").value.trim()||"UW-KIN";
-  RNG=makeRNG(s+"#"+levelIndex+"#"+BIOME+"#"+LENGTH+"#"+DIFFICULTY);
-  if(showToast) toast("Seed set. Rebuilding level...");
-  buildLevel();
-}
-document.querySelector("#seed").addEventListener("change", ()=>reseedRNG(true));
-applyBiome(BIOME); reseedRNG(false); updateRings();
-toast("Loaded! Use A/D to move, Space to jump. F to Shield.", 2000);
-
-/* ======= MAIN LOOP ======= */
-let last=performance.now();
-function stepParticles(dt){
-  ctx.save(); ctx.translate(-cam.x, -cam.y);
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i]; p.life -= dt; if(p.life<=0){ particles.splice(i,1); continue; }
-    p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 300*dt;
-    ctx.fillStyle = p.type==='dust' ? "rgba(236,201,99,0.7)" : "rgba(56,189,248,0.9)";
-    ctx.fillRect(p.x-2, p.y-2, 4, 4);
-  }
+function glowRect(x, y, w, h, color, glowColor, blur = 6) {
+  ctx.save();
+  ctx.shadowColor = glowColor ?? color;
+  ctx.shadowBlur  = blur;
+  ctx.fillStyle   = color;
+  ctx.fillRect(x, y, w, h);
   ctx.restore();
 }
-function loop(t){
-  const dt = Math.min(0.05, (t-last)/1000)*SPEED; last=t;
-  if(!MAP.length){ buildLevel(); }
-  if(!bgLayers){ bgLayers = buildBackground(LEVEL_COLS, 24); }
-  updatePlayer(dt);
-  updateEnemies(dt);
-  handleInteractions();
-  updateCam(dt);
 
-  ctx.setTransform(DPR,0,0,DPR,0,0);
-  drawBackground(t/1000);
-  ctx.save(); ctx.translate(-cam.x, -cam.y);
-  drawWorld();
-  // Entities
-  for(const e of entities){
-    if(e.type==="portal"){ ctx.fillStyle = e.open? "#32d399" : "#38bdf8"; ctx.beginPath(); ctx.arc(e.x, e.y+TILE/2, 14, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle = "#22324e"; ctx.strokeRect(e.x-18, e.y+TILE-2, 36, 6); if(!e.open){ ctx.fillStyle="rgba(56,189,248,0.25)"; ctx.fillRect(e.x+10, e.y, 8, TILE); } }
-    if(e.type==="door"){ if(!e.open){ ctx.fillStyle="#1b2640"; ctx.fillRect(e.x-16, e.y, 26, TILE); ctx.fillStyle="#32415e"; ctx.fillRect(e.x-16, e.y, 26, 6); ctx.fillStyle="#93c5fd"; ctx.fillRect(e.x-12, e.y-10, 84, 14); ctx.fillStyle="#0b1020"; ctx.font="10px sans-serif"; ctx.fillText("Need: "+e.requiresAction, e.x-10, e.y+0); } else { ctx.strokeStyle="#2a3a5a"; ctx.strokeRect(e.x-16, e.y, 26, TILE); } }
-    if(e.type==="camp"){ ctx.fillStyle="#ffedd5"; ctx.beginPath(); ctx.arc(e.x, e.y+12, 8, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#fb923c"; ctx.beginPath(); ctx.arc(e.x, e.y+8, 6, 0, Math.PI*2); ctx.fill(); ctx.fillStyle="#451a03"; ctx.fillRect(e.x-12, e.y+16, 24, 6); }
-    if(e.type==="pedestal"){ if(!e.taken){ ctx.fillStyle="#fcd34d"; ctx.fillRect(e.x-10, e.y+6, 20, 6); ctx.fillStyle="#fde68a"; ctx.fillRect(e.x-6, e.y-2, 12, 10); ctx.fillStyle="#111827"; ctx.font="10px sans-serif"; ctx.fillText(e.muscle, e.x-24, e.y-6); } }
-    if(e.type==="axis" && !e.done){ ctx.fillStyle="#38bdf8"; ctx.fillRect(e.x-6, e.y+8, 12, 12); ctx.fillStyle="#e2e8f0"; ctx.font="10px sans-serif"; ctx.fillText("AXIS", e.x-12, e.y+6); }
-    if(e.type==="vessel" && !e.done){ ctx.fillStyle="#a78bfa"; ctx.fillRect(e.x-6, e.y+8, 12, 12); ctx.fillStyle="#e2e8f0"; ctx.font="10px sans-serif"; ctx.fillText("VES", e.x-12, e.y+6); }
-    if(e.type==="gait" && !e.cleared){ ctx.fillStyle="#eab308"; ctx.fillRect(e.x-6, e.y+8, 12, 12); ctx.fillStyle="#0b1020"; ctx.font="10px sans-serif"; ctx.fillText("GAIT", e.x-14, e.y+6); }
-    if(e.type==="orb" && !e.taken){ ctx.fillStyle="rgba(250,204,21,0.85)"; ctx.beginPath(); ctx.arc(e.x, e.y+8, 6, 0, Math.PI*2); ctx.fill(); ctx.strokeStyle="#7c5e10"; ctx.stroke(); }
-    if(e.type==="anchor" && document.querySelector("#debug").checked){ ctx.fillStyle="#22c55e"; ctx.fillRect(e.x-2, e.y-2, 4, 4); }
-  }
-  // Enemies
-  for(const en of enemies){
-    if(en.type==="patroller"){ ctx.fillStyle="#ef4444"; ctx.fillRect(en.x, en.y, en.w, en.h); }
-    else if(en.type==="floater"){ ctx.fillStyle="#fb7185"; ctx.beginPath(); ctx.arc(en.x+en.w/2, en.y+en.h/2, en.w/2, 0, Math.PI*2); ctx.fill(); }
-  }
-  // Player
-  if(player.invuln>0 && Math.floor(t*0.02)%2===0){ ctx.globalAlpha=0.5; }
-  ctx.fillStyle="#94a3b8"; ctx.fillRect(player.x, player.y, player.w, player.h);
-  ctx.fillStyle="#0b1020"; ctx.fillRect(player.x+6+(player.facing>0?2:0), player.y+10, 4, 4);
-  // Shield bubble
-  if(player.shield>0){ ctx.strokeStyle="rgba(56,189,248,0.8)"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(player.x+player.w/2, player.y+player.h/2, 18, 0, Math.PI*2); ctx.stroke(); }
-  ctx.globalAlpha=1;
+function text(str, x, y, {
+  size  = 6,
+  color = C.text,
+  align = 'left',
+  glow  = null,
+  blur  = 4,
+} = {}) {
+  ctx.save();
+  ctx.font          = `${size}px monospace`;
+  ctx.textAlign     = align;
+  ctx.textBaseline  = 'top';
+  if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = blur; }
+  ctx.fillStyle = color;
+  ctx.fillText(str, x, y);
   ctx.restore();
-  stepParticles(dt);
-  document.getElementById("points").textContent = Progress.points;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CRT POST-PROCESSING
+// ─────────────────────────────────────────────────────────────
+let _flickerVal   = 1;
+let _flickerTimer = 0;
+
+function applyCRT() {
+  const dw = GW * crtScale;
+  const dh = GH * crtScale;
+  const ox = (crtCanvas.width  - dw) / 2;
+  const oy = (crtCanvas.height - dh) / 2;
+
+  // Black bars
+  crtCtx.fillStyle = '#000';
+  crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
+
+  // Subtle screen flicker
+  _flickerTimer--;
+  if (_flickerTimer <= 0) {
+    _flickerTimer = rng.int(50, 300);
+    _flickerVal   = 0.94 + rng.next() * 0.06;
+  }
+
+  // Upscale game canvas
+  crtCtx.save();
+  crtCtx.globalAlpha = _flickerVal;
+  crtCtx.drawImage(gameCanvas, ox, oy, dw, dh);
+  crtCtx.restore();
+
+  // Scanlines
+  crtCtx.save();
+  for (let y = oy; y < oy + dh; y += crtScale * 2) {
+    crtCtx.fillStyle = 'rgba(0,0,0,0.28)';
+    crtCtx.fillRect(ox, y, dw, crtScale * 0.9);
+  }
+  crtCtx.restore();
+
+  // Vignette
+  const grad = crtCtx.createRadialGradient(
+    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.25,
+    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.72,
+  );
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,8,0,0.72)');
+  crtCtx.fillStyle = grad;
+  crtCtx.fillRect(0, 0, crtCanvas.width, crtCanvas.height);
+
+  // Chromatic aberration (very subtle red ghost shifted right)
+  crtCtx.save();
+  crtCtx.globalCompositeOperation = 'screen';
+  crtCtx.globalAlpha = 0.05;
+  crtCtx.drawImage(gameCanvas, ox + crtScale * 0.6, oy, dw, dh);
+  crtCtx.restore();
+
+  // Phosphor edge bloom (green tint at screen perimeter)
+  const edgeGrad = crtCtx.createRadialGradient(
+    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.42,
+    crtCanvas.width / 2, crtCanvas.height / 2, dh * 0.55,
+  );
+  edgeGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  edgeGrad.addColorStop(1, 'rgba(0,30,0,0.12)');
+  crtCtx.fillStyle = edgeGrad;
+  crtCtx.fillRect(ox, oy, dw, dh);
+}
+
+// ─────────────────────────────────────────────────────────────
+// TITLE SCREEN
+// ─────────────────────────────────────────────────────────────
+function drawTitle(f) {
+  // Background: animated grid
+  fillRect(0, 0, GW, GH, C.bg);
+
+  ctx.save();
+  ctx.strokeStyle = C.dim;
+  ctx.lineWidth   = 0.5;
+  const gOff = (f * 0.25) % 16;
+  for (let x = (-16 + gOff); x < GW + 16; x += 16) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, GH); ctx.stroke();
+  }
+  for (let y = 0; y < GH; y += 16) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(GW, y); ctx.stroke();
+  }
+  ctx.restore();
+
+  // Moving horizontal scan artifact
+  const scanY = ((f * 0.4) % GH);
+  ctx.save();
+  ctx.fillStyle = 'rgba(57,255,20,0.04)';
+  ctx.fillRect(0, scanY, GW, 3);
+  ctx.restore();
+
+  // Title glow pulse
+  const pulse = 0.75 + 0.25 * Math.sin(f * 0.05);
+  ctx.save();
+  ctx.shadowColor = C.player;
+  ctx.shadowBlur  = 20 * pulse;
+  text('VAULT', GW / 2, 32, { size: 26, align: 'center', color: C.player });
+  text('RUN',   GW / 2, 60, { size: 26, align: 'center', color: C.player });
+  ctx.restore();
+
+  text('ROGUELITE PLATFORMER', GW / 2, 93, {
+    size: 5, align: 'center', color: C.textDim,
+  });
+
+  // Blink prompt
+  if (Math.floor(f / 28) % 2 === 0) {
+    text('[ PRESS ENTER TO START ]', GW / 2, 112, {
+      size: 6, align: 'center', color: C.text, glow: C.player, blur: 6,
+    });
+  }
+
+  text('ARROW KEYS / WASD  ·  Z=ATTACK  ·  SHIFT=DASH', GW / 2, 130, {
+    size: 4, align: 'center', color: C.textDim,
+  });
+
+  // Meta coins
+  const meta = loadMeta();
+  text(`COINS: ${meta.coins}`, 8, 8, { size: 5, color: C.coin, glow: C.coinGlow, blur: 4 });
+  if (meta.coins >= 15) {
+    text('[ S ] SHOP', GW - 8, 8, { size: 5, align: 'right', color: C.textDim });
+  }
+
+  text('v0.1', GW / 2, GH - 10, { size: 4, align: 'center', color: C.dim });
+}
+
+// ─────────────────────────────────────────────────────────────
+// META PERSISTENCE
+// ─────────────────────────────────────────────────────────────
+function loadMeta() {
+  try {
+    const raw = localStorage.getItem('vaultrun_meta');
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+  return { coins: 0, armorLevel: 0, speedLevel: 0, arsenalLevel: 0 };
+}
+function saveMeta(meta) {
+  try { localStorage.setItem('vaultrun_meta', JSON.stringify(meta)); } catch (_) {}
+}
+
+// ─────────────────────────────────────────────────────────────
+// GAME STATE MACHINE  (step 1: just title)
+// ─────────────────────────────────────────────────────────────
+let state = 'title';
+let frame = 0;
+
+function update() {
+  frame++;
+
+  if (state === 'title') {
+    if (just('Enter', 'NumpadEnter')) {
+      // placeholder — gameplay comes in next steps
+      state = 'title';
+    }
+  }
+
+  clearInput();
+}
+
+function render() {
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, GW, GH);
+
+  if (state === 'title') drawTitle(frame);
+
+  applyCRT();
+}
+
+// ─────────────────────────────────────────────────────────────
+// GAME LOOP
+// ─────────────────────────────────────────────────────────────
+function loop() {
+  update();
+  render();
   requestAnimationFrame(loop);
 }
-requestAnimationFrame(loop);
+loop();
 </script>
 </body>
 </html>
