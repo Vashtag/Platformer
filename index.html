@@ -815,17 +815,26 @@ function updatePlayer(p, level, projectiles) {
         { vxRange: 1.5, vyRange: 1, vyBias: 0, life: 14, size: 2 });
     }
 
-    // ── Attack ──
+    // ── Shoot (gun) ──
     if (just('KeyZ', 'KeyX', 'KeyJ') && p.atkCooldown <= 0) {
       p.atkTimer    = ATK_FRAMES;
-      p.atkCooldown = ATK_COOLDOWN;
+      p.atkCooldown = p.hasBladestorm ? Math.floor(ATK_COOLDOWN * 0.55) : ATK_COOLDOWN;
+
+      // Bullet spawns at barrel tip
+      const bx  = p.x + (p.dir > 0 ? p.w + 6 : -10);
+      const by  = p.y + 6;
+      const spd = 7.0;
+      projectiles.push(newProjectile(bx, by, p.dir * spd, 0, 'player', '#ffee44', 7, 2));
+
+      // Bladestorm: triple spread shot
       if (p.hasBladestorm) {
-        // Fire a projectile in dash direction
-        projectiles.push(newProjectile(
-          p.x + (p.dir > 0 ? p.w : -6), p.y + p.h / 2 - 2,
-          p.dir * 4, 0, 'player', C.player,
-        ));
+        projectiles.push(newProjectile(bx, by, p.dir * spd * 0.85, -spd * 0.42, 'player', '#ffee44', 6, 2));
+        projectiles.push(newProjectile(bx, by, p.dir * spd * 0.85,  spd * 0.42, 'player', '#ffee44', 6, 2));
       }
+
+      // Muzzle flash particles
+      spawnParticles(bx, by, '#ffee44', 4,
+        { vxRange: 1.0, vyRange: 1.0, vyBias: 0, life: 5, size: 2 });
     }
 
     // ── State label ──
@@ -875,8 +884,8 @@ function playerAtkHitbox(p) {
 // ─────────────────────────────────────────────────────────────
 // PROJECTILES
 // ─────────────────────────────────────────────────────────────
-function newProjectile(x, y, vx, vy, owner, color) {
-  return { x, y, vx, vy, w: 4, h: 4, owner, color, age: 0, dead: false };
+function newProjectile(x, y, vx, vy, owner, color, w = 4, h = 4) {
+  return { x, y, vx, vy, w, h, owner, color, age: 0, dead: false };
 }
 
 function updateProjectiles(projs, level) {
@@ -1489,15 +1498,37 @@ function drawPlayer(p, camX, camY) {
     ctx.fillRect(PW - 4, PH - 4, 3, 3);
   }
 
-  // Attack slash
-  if (p.state === 'attack') {
-    const progress = 1 - p.atkTimer / ATK_FRAMES;
-    const slashLen = ATK_RANGE * progress;
-    ctx.fillStyle   = C.player;
-    ctx.shadowColor = C.player;
-    ctx.shadowBlur  = 12;
-    ctx.fillRect(PW - 2, PH / 2 - 2, slashLen, 2);
-    ctx.fillRect(PW - 2, PH / 2,     slashLen * 0.7, 2);
+  // ── Gun (always visible) ──
+  const firing  = p.state === 'attack';
+  const recoil  = (firing && p.atkTimer > ATK_FRAMES - 3) ? 2 : 0;
+  const gripX   = PW - 3 - recoil;
+  const barrelX = PW + 1 - recoil;
+
+  // Grip
+  ctx.shadowColor = '#446688';
+  ctx.shadowBlur  = 3;
+  ctx.fillStyle   = '#1e2d44';
+  ctx.fillRect(gripX, 5, 5, 5);
+  // Barrel
+  ctx.fillStyle = '#3a5878';
+  ctx.fillRect(barrelX, 6, 8, 2);
+  // Barrel highlight stripe
+  ctx.fillStyle = '#6a9ab8';
+  ctx.fillRect(barrelX, 6, 8, 1);
+  // Barrel tip ring
+  ctx.fillStyle = '#88bbdd';
+  ctx.fillRect(barrelX + 7, 5, 2, 4);
+
+  // Muzzle flash — only on the actual fire frame
+  if (firing && p.atkTimer === ATK_FRAMES) {
+    ctx.save();
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur  = 14;
+    ctx.fillStyle   = '#ffee44';
+    ctx.fillRect(barrelX + 8, 4, 5, 6);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(barrelX + 9, 5, 3, 4);
+    ctx.restore();
   }
 
   ctx.restore();
@@ -1866,22 +1897,6 @@ function update() {
     for (const e of level.enemies) {
       if (e.type === 'boss') updateBoss(e, level, player, projectiles);
       else                   updateEnemy(e, level, player, projectiles);
-    }
-
-    // ── Player melee attack vs enemies (fires on first frame) ──
-    if (player.atkTimer === ATK_FRAMES) {
-      const hb = playerAtkHitbox(player);
-      if (hb) {
-        for (const e of level.enemies) {
-          if (!e.dead && overlaps(hb, e)) {
-            const killed = hurtEnemy(e, 1, player);
-            if (killed) {
-              // Drop a coin at enemy location
-              level.coins.push({ x: e.x + e.w / 2, y: e.y + e.h / 2, taken: false });
-            }
-          }
-        }
-      }
     }
 
     // ── Player projectiles vs enemies ──────────────────────
