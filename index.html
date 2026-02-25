@@ -367,19 +367,19 @@ const EXIT_CHUNK = makeChunk([
   '....................', // 0
   '....................', // 1
   '....................', // 2
-  '....................', // 3
+  '...............PPPPP', // 3  ← exit platform (cols 15-19); portal at col 16
   '....................', // 4
-  '....................', // 5
+  '............PPPP....', // 5  ← step 3 (cols 12-15)
   '....................', // 6
-  '....................', // 7
+  '........PPPP........', // 7  ← step 2 (cols 8-11)
   '....................', // 8
-  '....................', // 9
+  '....PPPP............', // 9  ← step 1 (cols 4-7)
   '....................', // 10
-  'XXXXXXXXXXXXXXXXXXXX', // 11
+  'XXXXXXXXXXXXXXXXXXXX', // 11 ← floor (player enters here)
 ]);
 
 const CHUNKS = [
-  // 0: Flat — just ground, enemy patrol space
+  // 0: Simple pit — one stepping stone required to cross
   makeChunk([
     '....................',
     '....................',
@@ -390,9 +390,9 @@ const CHUNKS = [
     '....................',
     '....................',
     '....................',
+    '.........PP.........', // stepping stone at cols 9-10 (y=144, 32px above floor)
     '....................',
-    '....................',
-    'XXXXXXXXXXXXXXXXXXXX',
+    'XXXXXXXX....XXXXXXXX', // pit at cols 8-11 (too wide to jump without stone)
   ]),
   // 1: Two floating platforms at different heights
   makeChunk([
@@ -424,20 +424,20 @@ const CHUNKS = [
     '....................',
     'XXXXXXXXXXXXXXXXXXXX',
   ]),
-  // 3: Pit with platforms to cross
+  // 3: Pit — stepping stone in the middle is required to cross
   makeChunk([
     '....................',
     '....................',
     '....................',
+    '....PPP.............', // decorative high platform (cols 4-6)
     '....................',
-    '.....PPP............',
+    '.............PPP....', // decorative mid platform (cols 13-15)
     '....................',
-    '..........PPP.......',
-    'XXXXXXX.........XXXX',
-    'XXXXXXX.........XXXX',
-    'XXXXXXX.........XXXX',
-    'XXXXXXX.........XXXX',
-    'XXXXXXX.........XXXX',
+    '....................',
+    '....................',
+    '.........PP.........', // stepping stone at cols 9-10 (REQUIRED)
+    '....................',
+    'XXXXXXXX....XXXXXXXX', // pit at cols 8-11 (floor-level gap, 5 tiles wide)
   ]),
   // 4: Spike gauntlet — platforms over deadly floor
   makeChunk([
@@ -499,20 +499,20 @@ const CHUNKS = [
     '....................',
     'XXXXXXXXXXXXXXXXXXXX',
   ]),
-  // 8: Lower pit with spike bottom and platforms
+  // 8: Wide pit — two stepping stones required to cross
   makeChunk([
     '....................',
     '....................',
     '....................',
-    'PPP.........PPP.....',
     '....................',
-    '.........PPP........',
     '....................',
-    'XXXXXXX.....XXXXXXX.',
-    'XXXXXXX.....XXXXXXX.',
-    'XXXXXXX.....XXXXXXX.',
-    'XXXXXXX.SSSSXXXXXXX.',
-    'XXXXXXXXXXXXXXXXXXXX',
+    '....................',
+    '....................',
+    '....................',
+    '....................',
+    '.......PP..PP.......', // two stones at cols 7-8 and 11-12 (y=144)
+    '....................',
+    'XXXXXXX.....XXXXXXXX', // pit at cols 7-11 (5 tiles wide)
   ]),
   // 9: Mixed — one solid ledge, spikes on ground
   makeChunk([
@@ -582,9 +582,9 @@ class Level {
       }
     }
 
-    // Exit portal: inside exit chunk, 4 tiles from its left edge
-    this.exitX    = (segs.length - 1) * CHUNK_W * TS + TS * 4;
-    this.exitY    = (CHUNK_H - 2) * TS;
+    // Exit portal: on the elevated staircase platform in the exit chunk
+    this.exitX    = (segs.length - 1) * CHUNK_W * TS + TS * 16; // col 16 of exit chunk
+    this.exitY    = 3 * TS;                                       // row 3 surface (y=48)
     this.exitOpen = false;
 
     // Spawn enemies (regular floors) or boss (boss floor)
