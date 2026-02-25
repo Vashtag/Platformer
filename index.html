@@ -91,6 +91,13 @@
     20% { opacity: 0 }   100%{ opacity: 0 }
   }
 
+  /* High-res text overlay – rendered at display resolution so text stays sharp */
+  #text-canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 15;
+    image-rendering: auto;
+  }
+
   /* Turn-on animation */
   @keyframes crt-on {
     0%  { filter: brightness(30) saturate(0); transform: scaleY(0.005) scaleX(0.8); }
@@ -109,6 +116,7 @@
     <div id="rgb-grid"></div>
     <div id="crt-glow"></div>
     <div id="flicker"></div>
+    <canvas id="text-canvas"></canvas>
   </div>
 </div>
 <script>
@@ -249,6 +257,11 @@ phosphorCanvas.height = GH;
 const phosphorCtx = phosphorCanvas.getContext('2d');
 phosphorCtx.imageSmoothingEnabled = false;
 
+// High-resolution text overlay canvas – sized to display pixels so text renders crisply
+const textCanvas = document.getElementById('text-canvas');
+let textCtx = textCanvas.getContext('2d');
+let displayScale = 1;
+
 const crtContainer = document.getElementById('crt-container');
 function resizeCRT() {
   const aspect = GW / GH;
@@ -260,6 +273,11 @@ function resizeCRT() {
   crtContainer.style.height = ch + 'px';
   gameCanvas.style.width    = cw + 'px';
   gameCanvas.style.height   = ch + 'px';
+  // Keep text canvas at true display resolution so 1 canvas px = 1 screen px
+  textCanvas.width  = cw;
+  textCanvas.height = ch;
+  textCtx = textCanvas.getContext('2d');
+  displayScale = cw / GW;
 }
 window.addEventListener('resize', resizeCRT);
 resizeCRT();
@@ -288,14 +306,16 @@ function text(str, x, y, {
   glow  = null,
   blur  = 4,
 } = {}) {
-  ctx.save();
-  ctx.font         = `${size}px monospace`;
-  ctx.textAlign    = align;
-  ctx.textBaseline = 'top';
-  if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = blur; }
-  ctx.fillStyle = color;
-  ctx.fillText(str, x, y);
-  ctx.restore();
+  // Draw on the high-res overlay so text is crisp at any display size
+  const s = displayScale;
+  textCtx.save();
+  textCtx.font         = `${Math.round(size * s)}px monospace`;
+  textCtx.textAlign    = align;
+  textCtx.textBaseline = 'top';
+  if (glow) { textCtx.shadowColor = glow; textCtx.shadowBlur = blur * s; }
+  textCtx.fillStyle = color;
+  textCtx.fillText(str, Math.round(x * s), Math.round(y * s));
+  textCtx.restore();
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1998,6 +2018,7 @@ function update() {
 function render() {
   ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, GW, GH);
+  textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
 
   if (gameState === 'title') {
     drawTitle(frame);
