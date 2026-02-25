@@ -144,7 +144,7 @@ const ATK_COOLDOWN  = 22;
 const ATK_RANGE     = 24;
 
 const POWERUPS = {
-  double_jump: { label: 'DOUBLE JUMP',  desc: 'Jump again in mid-air',          color: '#00e5ff' },
+  double_jump: { label: 'EXTRA JUMP',  desc: '+1 mid-air jump (triple jump)',     color: '#00e5ff' },
   blade_storm: { label: 'BLADESTORM',   desc: 'Attacks fire a projectile',       color: '#ff44ff' },
   iron_skin:   { label: 'IRON SKIN',    desc: '+1 max HP  ·  restore 1 HP',      color: '#aaaaee' },
   speed_demon: { label: 'SPEED DEMON',  desc: '1.32× movement speed',            color: '#ffee00' },
@@ -366,20 +366,20 @@ const START_CHUNK = makeChunk([
 const EXIT_CHUNK = makeChunk([
   '....................', // 0
   '....................', // 1
-  '....................', // 2
-  '...............PPPPP', // 3  ← exit platform (cols 15-19); portal at col 16
+  '...............PPPPP', // 2  ← exit platform (cols 15-19); portal at col 16
+  '....................', // 3
   '....................', // 4
-  '............PPPP....', // 5  ← step 3 (cols 12-15)
+  '............PPPP....', // 5  ← step 2 (cols 12-15); 48 px above step 1 = double jump
   '....................', // 6
-  '........PPPP........', // 7  ← step 2 (cols 8-11)
-  '....................', // 8
-  '....PPPP............', // 9  ← step 1 (cols 4-7)
+  '....................', // 7
+  '........PPPP........', // 8  ← step 1 (cols 8-11); 48 px above floor = double jump
+  '....................', // 9
   '....................', // 10
   'XXXXXXXXXXXXXXXXXXXX', // 11 ← floor (player enters here)
 ]);
 
 const CHUNKS = [
-  // 0: Simple pit — one stepping stone required to cross
+  // 0: Simple pit — stepping stone at row 8 (48px above floor, double jump required)
   makeChunk([
     '....................',
     '....................',
@@ -389,10 +389,10 @@ const CHUNKS = [
     '....................',
     '....................',
     '....................',
+    '.........PP.........', // stepping stone at cols 9-10 (y=128, double jump required)
     '....................',
-    '.........PP.........', // stepping stone at cols 9-10 (y=144, 32px above floor)
     '....................',
-    'XXXXXXXX....XXXXXXXX', // pit at cols 8-11 (too wide to jump without stone)
+    'XXXXXXXX....XXXXXXXX', // pit at cols 8-11 (too wide to cross without stone)
   ]),
   // 1: Two floating platforms at different heights
   makeChunk([
@@ -424,7 +424,7 @@ const CHUNKS = [
     '....................',
     'XXXXXXXXXXXXXXXXXXXX',
   ]),
-  // 3: Pit — stepping stone in the middle is required to cross
+  // 3: Pit — stepping stone at row 8 (double jump required to reach)
   makeChunk([
     '....................',
     '....................',
@@ -434,10 +434,10 @@ const CHUNKS = [
     '.............PPP....', // decorative mid platform (cols 13-15)
     '....................',
     '....................',
+    '.........PP.........', // stepping stone at cols 9-10 (y=128, double jump required)
     '....................',
-    '.........PP.........', // stepping stone at cols 9-10 (REQUIRED)
     '....................',
-    'XXXXXXXX....XXXXXXXX', // pit at cols 8-11 (floor-level gap, 5 tiles wide)
+    'XXXXXXXX....XXXXXXXX', // pit at cols 8-11 (floor-level gap)
   ]),
   // 4: Spike gauntlet — platforms over deadly floor
   makeChunk([
@@ -499,7 +499,7 @@ const CHUNKS = [
     '....................',
     'XXXXXXXXXXXXXXXXXXXX',
   ]),
-  // 8: Wide pit — two stepping stones required to cross
+  // 8: Wide pit — two stepping stones at row 8 (double jump required to reach each)
   makeChunk([
     '....................',
     '....................',
@@ -509,8 +509,8 @@ const CHUNKS = [
     '....................',
     '....................',
     '....................',
+    '.......PP..PP.......', // two stones at cols 7-8 and 11-12 (y=128, double jump)
     '....................',
-    '.......PP..PP.......', // two stones at cols 7-8 and 11-12 (y=144)
     '....................',
     'XXXXXXX.....XXXXXXXX', // pit at cols 7-11 (5 tiles wide)
   ]),
@@ -584,7 +584,7 @@ class Level {
 
     // Exit portal: on the elevated staircase platform in the exit chunk
     this.exitX    = (segs.length - 1) * CHUNK_W * TS + TS * 16; // col 16 of exit chunk
-    this.exitY    = 3 * TS;                                       // row 3 surface (y=48)
+    this.exitY    = 2 * TS;                                       // row 2 surface (y=32)
     this.exitOpen = false;
 
     // Spawn enemies (regular floors) or boss (boss floor)
@@ -756,6 +756,7 @@ function newPlayer(x, y, meta) {
     dir: 1,          // 1=right, -1=left
     onGround: false,
     jumpExtra: 0,    // remaining mid-air jumps
+    maxJumpExtra: 1, // resets to this on landing (powerup raises it to 2)
     dashTimer:    0,
     dashCooldown: 0,
     atkTimer:     0,
@@ -765,7 +766,7 @@ function newPlayer(x, y, meta) {
     frame:   0,
     state:  'idle',
     powerups: [],
-    hasDoubleJump: false,
+    hasDoubleJump: true,  // base mechanic — always available
     hasBladestorm: (meta.arsenalLevel | 0) > 0,
     hasSpeedDemon: (meta.speedLevel   | 0) > 0,
     hasPhaseDash:  false,
@@ -776,7 +777,7 @@ function newPlayer(x, y, meta) {
 
 function applyPowerup(p, key) {
   if (!p.powerups.includes(key)) p.powerups.push(key);
-  if (key === 'double_jump') p.hasDoubleJump = true;
+  if (key === 'double_jump') p.maxJumpExtra = 2; // triple jump: 2 mid-air jumps
   if (key === 'blade_storm') p.hasBladestorm = true;
   if (key === 'iron_skin')   { p.maxHp++; p.hp = Math.min(p.hp + 1, p.maxHp); }
   if (key === 'speed_demon') p.hasSpeedDemon = true;
@@ -815,7 +816,7 @@ function updatePlayer(p, level, projectiles) {
         p.vy = P_JUMP;
         spawnParticles(p.x + p.w / 2, p.y + p.h, C.player, 5,
           { vxRange: 1.5, vyRange: 0.8, vyBias: -0.2, life: 12, size: 1.5 });
-      } else if (p.hasDoubleJump && p.jumpExtra > 0) {
+      } else if (p.jumpExtra > 0) {
         p.vy = P_JUMP * 0.88;
         p.jumpExtra--;
         spawnParticles(p.x + p.w / 2, p.y + p.h / 2, C.visor, 7,
@@ -869,7 +870,7 @@ function updatePlayer(p, level, projectiles) {
   const skipTiles = isDashing && p.hasPhaseDash;
   moveAndCollide(p, level, !skipTiles);
 
-  if (p.onGround) p.jumpExtra = 1;
+  if (p.onGround) p.jumpExtra = p.maxJumpExtra;
 
   // ── Spike damage ──
   const tL = Math.floor(p.x / TS);
