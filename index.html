@@ -587,14 +587,13 @@ class Level {
     // Exit portal: on the elevated staircase platform in the exit chunk
     this.exitX    = (segs.length - 1) * CHUNK_W * TS + TS * 16; // col 16 of exit chunk
     this.exitY    = 2 * TS;                                       // row 2 surface (y=32)
-    this.exitOpen = false;
+    this.exitOpen = true;  // Portal is always open — enemies are optional (coin rewards)
 
     // Spawn enemies (regular floors) or boss (boss floor)
     if (this.isBoss) {
       this.spawnBoss();
     } else {
       this.spawnEnemies(this.floor);
-      if (this.enemies.length === 0) this.exitOpen = true;
     }
   }
 
@@ -1897,7 +1896,7 @@ function loadNextLevel() {
 
 function nextFloor() {
   floorNum++;
-  isBoss = (floorNum === 4);   // floor 4 is the boss
+  isBoss = (floorNum % 4 === 0);  // boss every 4 floors (4, 8, 12, …)
 
   // Offer powerup upgrade between every floor
   const available = POWERUP_KEYS.filter(k => !player.powerups.includes(k));
@@ -2009,31 +2008,21 @@ function update() {
       }
     }
 
-    // ── Exit: open when all enemies cleared ─────────────────
-    if (!level.exitOpen && level.enemies.every(e => e.dead)) {
-      level.exitOpen = true;
-    }
-
     // ── Exit portal collision ───────────────────────────────
-    if (level.exitOpen) {
-      const portal = { x: level.exitX - 8, y: level.exitY - 16, w: 20, h: 24 };
-      if (overlaps(player, portal)) {
-        if (isBoss) {
-          // Boss floor cleared → victory
-          meta.coins += coinsRun;
-          coinsRun = 0;
-          saveMeta(meta);
-          // Celebration particles
-          for (let i = 0; i < 6; i++) {
-            spawnParticles(rng.int(40, GW - 40), rng.int(30, GH - 30),
-              rng.pick([C.exit, C.coin, C.text, C.boss]), 8,
-              { vxRange: 3, vyRange: 3, vyBias: -2.5, life: 40, size: 2 });
-          }
-          gameState = 'win';
-        } else {
-          nextFloor();
+    const portal = { x: level.exitX - 8, y: level.exitY - 16, w: 20, h: 24 };
+    if (overlaps(player, portal)) {
+      meta.coins += coinsRun;
+      coinsRun = 0;
+      saveMeta(meta);
+      if (isBoss) {
+        // Boss floor cleared — celebrate then continue
+        for (let i = 0; i < 6; i++) {
+          spawnParticles(rng.int(40, GW - 40), rng.int(30, GH - 30),
+            rng.pick([C.exit, C.coin, C.text, C.boss]), 8,
+            { vxRange: 3, vyRange: 3, vyBias: -2.5, life: 40, size: 2 });
         }
       }
+      nextFloor();
     }
 
     // ── Player dead ─────────────────────────────────────────
