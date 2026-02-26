@@ -618,7 +618,10 @@ class Level {
 
   // ── Enemy spawning (called after tile layout) ──────────────
   spawnEnemies(floor) {
-    const ETYPES = ['walker', 'shooter', 'jumper'];
+    // Unlock harder types gradually: walkers only early, jumpers mid, shooters late
+    const ETYPES = floor < 3  ? ['walker'] :
+                   floor < 6  ? ['walker', 'walker', 'jumper'] :
+                                 ['walker', 'shooter', 'jumper'];
     // segs.length = tileW / CHUNK_W
     const numSegs = this.tileW / CHUNK_W;
     for (let si = 1; si < numSegs - 1; si++) {
@@ -636,7 +639,7 @@ class Level {
           const below = this.getTile(tc, tr + 1);
           if (here === 0 && (below === 1 || below === 2)) {
             // Enemy bottom rests on top of row tr+1
-            this.enemies.push(newEnemy(type, tc * TS, (tr + 1) * TS - eh, ew, eh));
+            this.enemies.push(newEnemy(type, tc * TS, (tr + 1) * TS - eh, ew, eh, floor));
             break;
           }
         }
@@ -927,19 +930,28 @@ function updateProjectiles(projs, level) {
 // ─────────────────────────────────────────────────────────────
 // ENEMIES
 // ─────────────────────────────────────────────────────────────
-function newEnemy(type, x, y, w, h) {
+function newEnemy(type, x, y, w, h, floor = 1) {
+  // All stats scale with floor so early floors feel manageable
+  const speed    = Math.min(0.45 + floor * 0.05, 1.1);         // walker patrol speed
+  const shootInt = Math.max(170 - floor * 8,  70);              // frames between shots
+  const bulletSpd = Math.min(1.6 + floor * 0.1, 3.5);          // projectile speed
+  const jVy      = Math.max(-4.0 - floor * 0.1, -5.5);         // jumper launch vy
+  const jVx      = Math.min(0.8  + floor * 0.08, 2.4);         // jumper launch vx
+  const baseHp   = type === 'shooter' ? 3 : 2;
+  const hp       = baseHp + Math.floor(floor / 4);              // +1 HP every 4 floors
   return {
     type, x, y, w, h,
-    vx: type === 'walker' ? 0.72 : 0,
+    vx: type === 'walker' ? speed : 0,
     vy: 0,
-    hp:    type === 'shooter' ? 3 : 2,
-    maxHp: type === 'shooter' ? 3 : 2,
+    hp, maxHp: hp,
     dir: 1,
     onGround: false,
     frame:      0,
     hurtTimer:  0,
+    // scaled stats stored per-enemy
+    speed, shootInterval: shootInt, bulletSpd, jVy, jVx,
     // type-specific timers (seeded per enemy for desync)
-    shootTimer: rng.int(60, 140),
+    shootTimer: rng.int(Math.ceil(shootInt * 0.6), shootInt),
     jumpTimer:  rng.int(30, 90),
     dead: false,
   };
@@ -956,7 +968,7 @@ function updateWalker(e, level) {
       e.dir *= -1;
     }
   }
-  e.vx = e.dir * 0.72;
+  e.vx = e.dir * e.speed;
   moveAndCollide(e, level);
   // Wall reversal (moveAndCollide zeroed vx on collision)
   if (e.vx === 0) e.dir *= -1;
@@ -972,12 +984,12 @@ function updateShooter(e, level, player, projectiles) {
   e.dir = player.x > e.x ? 1 : -1;
   e.shootTimer--;
   if (e.shootTimer <= 0) {
-    e.shootTimer = rng.int(90, 160);
+    e.shootTimer = rng.int(Math.ceil(e.shootInterval * 0.6), e.shootInterval);
     const dx = player.x + player.w / 2 - (e.x + e.w / 2);
     const dy = player.y + player.h / 2 - (e.y + e.h / 2);
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < 220) {
-      const spd = 2.4;
+      const spd = e.bulletSpd;
       projectiles.push(newProjectile(
         e.x + e.w / 2, e.y + e.h / 2,
         (dx / dist) * spd, (dy / dist) * spd,
@@ -992,9 +1004,9 @@ function updateJumper(e, level, player) {
   e.jumpTimer--;
   if (e.jumpTimer <= 0 && e.onGround) {
     e.jumpTimer = rng.int(40, 100);
-    e.vy = -5.0;
+    e.vy = e.jVy;
     const dx = player.x - e.x;
-    e.vx = Math.sign(dx) * (1.2 + rng.next() * 1.2);
+    e.vx = Math.sign(dx) * (e.jVx + rng.next() * e.jVx);
   }
   // Air drift toward player
   if (!e.onGround) {
