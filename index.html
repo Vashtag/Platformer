@@ -139,6 +139,8 @@ const P_JUMP        = -5.6;
 const P_DASH_SPEED  = 6.5;
 const DASH_FRAMES   = 10;
 const DASH_COOLDOWN = 50;
+const COYOTE_FRAMES      = 6;   // grace window to jump after leaving an edge
+const JUMP_BUFFER_FRAMES = 8;   // pre-buffer a jump press before landing
 const ATK_FRAMES    = 14;
 const ATK_COOLDOWN  = 22;
 const ATK_RANGE     = 24;
@@ -760,6 +762,8 @@ function newPlayer(x, y, meta) {
     onGround: false,
     jumpExtra: 0,    // remaining mid-air jumps
     maxJumpExtra: 1, // resets to this on landing (powerup raises it to 2)
+    coyoteTimer: 0,  // counts down after leaving ground (grace jump window)
+    jumpBuffer:  0,  // counts down after jump pressed (pre-buffer for landing)
     dashTimer:    0,
     dashCooldown: 0,
     atkTimer:     0,
@@ -801,6 +805,11 @@ function updatePlayer(p, level, projectiles) {
   if (p.atkCooldown  > 0) p.atkCooldown--;
   if (p.hurtTimer    > 0) p.hurtTimer--;
   if (p.hurtCooldown > 0) p.hurtCooldown--;
+  // Coyote time: refresh while on ground, count down once airborne
+  if (p.onGround)              p.coyoteTimer = COYOTE_FRAMES;
+  else if (p.coyoteTimer > 0)  p.coyoteTimer--;
+  // Jump buffer: count down every frame after jump was pressed
+  if (p.jumpBuffer > 0) p.jumpBuffer--;
 
   if (isDashing && !p.hasPhaseDash) {
     // Locked forward during dash (no steering)
@@ -811,23 +820,31 @@ function updatePlayer(p, level, projectiles) {
     // ── Horizontal ──
     if (down('ArrowLeft',  'KeyA')) { p.vx = -spd; p.dir = -1; }
     else if (down('ArrowRight', 'KeyD')) { p.vx =  spd; p.dir =  1; }
-    else p.vx *= 0.72;
+    else p.vx *= p.onGround ? 0.72 : 0.92;  // less air friction for better mobility
 
     // ── Jump ──
-    if (just('ArrowUp', 'KeyW', 'Space')) {
-      if (p.onGround) {
-        p.vy = P_JUMP;
-        spawnParticles(p.x + p.w / 2, p.y + p.h, C.player, 5,
-          { vxRange: 1.5, vyRange: 0.8, vyBias: -0.2, life: 12, size: 1.5 });
-      } else if (p.jumpExtra > 0) {
-        p.vy = P_JUMP * 0.88;
-        p.jumpExtra--;
-        spawnParticles(p.x + p.w / 2, p.y + p.h / 2, C.visor, 7,
-          { vxRange: 2, vyRange: 1.5, vyBias: 0, life: 14, size: 1.5 });
-      }
+    if (just('ArrowUp', 'KeyW', 'Space')) p.jumpBuffer = JUMP_BUFFER_FRAMES;
+
+    const canGroundJump = p.onGround || p.coyoteTimer > 0;
+    if (p.jumpBuffer > 0 && canGroundJump) {
+      // Ground jump (or coyote jump)
+      p.vy = P_JUMP;
+      p.coyoteTimer = 0;  // consume coyote window
+      p.jumpBuffer  = 0;  // consume buffer
+      spawnParticles(p.x + p.w / 2, p.y + p.h, C.player, 5,
+        { vxRange: 1.5, vyRange: 0.8, vyBias: -0.2, life: 12, size: 1.5 });
+    } else if (just('ArrowUp', 'KeyW', 'Space') && p.jumpExtra > 0) {
+      // Double / triple jump
+      p.vy = P_JUMP * 0.88;
+      p.jumpExtra--;
+      p.jumpBuffer = 0;
+      spawnParticles(p.x + p.w / 2, p.y + p.h / 2, C.visor, 7,
+        { vxRange: 2, vyRange: 1.5, vyBias: 0, life: 14, size: 1.5 });
     }
-    // Variable jump height cut
+    // Variable jump height cut (release early = lower arc)
     if (!down('ArrowUp', 'KeyW', 'Space') && p.vy < -1.5) p.vy += 0.4;
+    // Faster fall: snappier arc without changing max jump height
+    if (!p.onGround && p.vy > 0) p.vy += 0.16;
 
     // ── Dash ──
     if (just('ShiftLeft', 'ShiftRight') && p.dashCooldown <= 0) {
@@ -873,7 +890,16 @@ function updatePlayer(p, level, projectiles) {
   const skipTiles = isDashing && p.hasPhaseDash;
   moveAndCollide(p, level, !skipTiles);
 
-  if (p.onGround) p.jumpExtra = p.maxJumpExtra;
+  if (p.onGround) {
+    p.jumpExtra = p.maxJumpExtra;
+    // Jump buffer: if jump was pressed just before landing, jump immediately
+    if (p.jumpBuffer > 0) {
+      p.vy = P_JUMP;
+      p.jumpBuffer = 0;
+      spawnParticles(p.x + p.w / 2, p.y + p.h, C.player, 5,
+        { vxRange: 1.5, vyRange: 0.8, vyBias: -0.2, life: 12, size: 1.5 });
+    }
+  }
 
   // ── Spike damage ──
   const tL = Math.floor(p.x / TS);
